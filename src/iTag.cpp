@@ -249,9 +249,9 @@ void iTag::updateGUI(void)
 #define ITAG_COLOR_WHITE 0xffffff
 
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7e:be:67", "Zingo", ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //Orange
+  iTag("ff:ff:10:7e:be:67", "Zingo",   ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //Orange
   iTag("ff:ff:10:7d:d2:08", "Stefan",  ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE), //Dark blue
-  iTag("ff:ff:10:82:ef:1e", "Johan",  ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
+  iTag("ff:ff:10:82:ef:1e", "Johan(na)?", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
 };
 static NimBLEAdvertisedDevice* advDevice;
 static int32_t doConnect = -1; // -1 = none else it shows index into iTags to connect
