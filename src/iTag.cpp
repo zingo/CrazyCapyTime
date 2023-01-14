@@ -5,15 +5,17 @@
   https://www.youtube.com/watch?v=uNGMq_U3ydw
 
 */
+#include <mutex>
 #include <NimBLEDevice.h>
 #include "common.h"
 #include "iTag.h"
 
 #define TAG "iTAG"
 
-#define SCAN_INTERVAL 2000
+#define SCAN_INTERVAL 3000
 #define BT_SCAN_TIME 2 // in seconds
 
+std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
 
 //When the BLE Server sends a new button reading with the notify property
@@ -28,6 +30,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
     {
       for(int j=0; j<ITAG_COUNT; j++)
       {
+        std::lock_guard<std::mutex> lck(mutexTags);
         if(pClient->getPeerAddress().toString() == iTags[j].address) {
           // TODO add disconnect/reconnect detection with minimum time and stuff
           iTags[j].connected = true;
@@ -35,14 +38,12 @@ class ClientCallbacks : public NimBLEClientCallbacks
             tm timeNow = rtc.getTimeStruct();
             double timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
 
-            if (timeSinceLastSeen>2*60)
-            {
+            if (timeSinceLastSeen>2*60) {
               ESP_LOGI(TAG,"%s Connected Time: %s delta %f NEW LAP", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
               iTags[j].timeLastShownUp = timeNow;
               iTags[j].laps++;
             }
-            else
-            {
+            else {
               ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
               iTags[j].timeLastSeen = rtc.getTimeStruct();
             }
@@ -50,7 +51,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
           else {
             ESP_LOGI(TAG,"%s Connected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
           }
-          iTags[j].updateGUI();
+          iTags[j].updateGUI_locked();
         }
       }
     };
@@ -59,13 +60,14 @@ class ClientCallbacks : public NimBLEClientCallbacks
     {
       for(int j=0; j<ITAG_COUNT; j++)
       {
+        std::lock_guard<std::mutex> lck(mutexTags);
         if(pClient->getPeerAddress().toString() == iTags[j].address) {
-        ESP_LOGI(TAG,"%s Disconnected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-        iTags[j].connected = false;
-        if (iTags[j].active) {
-            iTags[j].timeLastSeen = rtc.getTimeStruct();
-        }
-        iTags[j].updateGUI();
+          ESP_LOGI(TAG,"%s Disconnected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+          iTags[j].connected = false;
+          if (iTags[j].active) {
+              iTags[j].timeLastSeen = rtc.getTimeStruct();
+          }
+          iTags[j].updateGUI_locked();
         }
       }
     };
@@ -84,35 +86,38 @@ iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t
     laps = 0;
 }
 
-bool iTag::updateBattery() {
+bool iTag::updateBattery( NimBLEClient* client) {
     // Battery READ, NOTIFY
     static const BLEUUID batteryServiceUUID("0000180f-0000-1000-8000-00805f9b34fb");
     static const BLEUUID batteryCharacteristicUUID("00002a19-0000-1000-8000-00805f9b34fb");
 
-    NimBLERemoteService* remoteService = pClient->getService(batteryServiceUUID);
+    NimBLERemoteService* remoteService = client->getService(batteryServiceUUID);
     if (remoteService) {
-    NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(batteryCharacteristicUUID);
-    if (remoteCharacteristic) {
+      NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(batteryCharacteristicUUID);
+      if (remoteCharacteristic) {
         // Read the value of the characteristic.
         if(remoteCharacteristic->canRead()) {
-        battery = remoteCharacteristic->readUInt8();
-        ESP_LOGI(TAG,"Read battery value: 0x%x %d",battery,battery);
+          uint32_t bat = remoteCharacteristic->readUInt8();
+          ESP_LOGI(TAG,"Read battery value: 0x%x %d",bat,bat);
+
+          std::lock_guard<std::mutex> lck(mutexTags);
+          battery = bat;
         }
-//          if(remoteCharacteristic->canNotify()) {
-//            remoteCharacteristic->registerForNotify(batteryNotifyCallback);
-//          }
+  //          if(remoteCharacteristic->canNotify()) {
+  //            remoteCharacteristic->registerForNotify(batteryNotifyCallback);
+  //          }
         return true;
-    }
+      }
     }
     return false;
 }
 
 
-bool iTag::toggleBeep(bool beep) {
+bool iTag::toggleBeep(NimBLEClient* client, bool beep) {
     // Alert WRITE, WRITE_WITHOUT_RESPONSE, NOTIFY 0x00-NoAlert 0x01-MildAlert 0x02-HighAlert
     static const BLEUUID alertServiceUUID("00001802-0000-1000-8000-00805f9b34fb");
     static const BLEUUID alertCharacteristicUUID("00002a06-0000-1000-8000-00805f9b34fb");
-    NimBLERemoteService* remoteService = pClient->getService(alertServiceUUID);
+    NimBLERemoteService* remoteService = client->getService(alertServiceUUID);
     if (remoteService) {
     NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(alertCharacteristicUUID);
     if (remoteCharacteristic) {
@@ -123,10 +128,10 @@ bool iTag::toggleBeep(bool beep) {
         const uint8_t MildAlert[] = {0x1};
         const uint8_t HighAlert[] = {0x2};
         if (beep) {
-        remoteCharacteristic->writeValue((uint8_t*)&HighAlert, 1, false);
+          remoteCharacteristic->writeValue((uint8_t*)&HighAlert, 1, false);
         }
         else {
-        remoteCharacteristic->writeValue((uint8_t*)&NoAlert, 1, false);
+          remoteCharacteristic->writeValue((uint8_t*)&NoAlert, 1, false);
         }
         return true;
     }
@@ -134,57 +139,63 @@ bool iTag::toggleBeep(bool beep) {
     return false;
 }
 
-bool iTag::toggleBeepOnLost(bool beep) {
+bool iTag::toggleBeepOnLost(NimBLEClient* client, bool beep) {
     // Alert when disconnect WRITE,  0x00-NoAlert 0x01-Alert
     static const BLEUUID alertServiceUUID("0000ffe0-0000-1000-8000-00805f9b34fb");
     static const BLEUUID alertCharacteristicUUID("0000ffe2-0000-1000-8000-00805f9b34fb");
-    NimBLERemoteService* remoteService = pClient->getService(alertServiceUUID);
+    NimBLERemoteService* remoteService = client->getService(alertServiceUUID);
     if (remoteService) {
-    NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(alertCharacteristicUUID);
-    if (remoteCharacteristic) {
+      NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(alertCharacteristicUUID);
+      if (remoteCharacteristic) {
         uint8_t value = remoteCharacteristic->readUInt8();  // Read the value of the characteristic.
         ESP_LOGI(TAG,"Read alert value: 0x%x %d",value,value);
 
         const uint8_t NoAlert[] = {0x0};
         const uint8_t Alert[]   = {0x1};
         if (beep) {
-        remoteCharacteristic->writeValue((uint8_t*)&Alert, 1, false);
+          remoteCharacteristic->writeValue((uint8_t*)&Alert, 1, false);
         }
         else {
-        remoteCharacteristic->writeValue((uint8_t*)&NoAlert, 1, false);
+          remoteCharacteristic->writeValue((uint8_t*)&NoAlert, 1, false);
         }
         return true;
-    }
+      }
     }
     return false;
 }
 
 bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
 {
+  NimBLEClient* client;
+
+  {  // Just take a short lock to get pClient (and creat if not done before)
+    std::lock_guard<std::mutex> lck(mutexTags);
     if(pClient == NULL) {
-    pClient = BLEDevice::createClient(appId++);
-    pClient->setClientCallbacks(new ClientCallbacks, false);
-    pClient->setConnectTimeout(10); // 10s
+      pClient = BLEDevice::createClient(appId++);
+      pClient->setClientCallbacks(new ClientCallbacks, false);
+      pClient->setConnectTimeout(10); // 10s
     }
+    client = pClient;
+  }
 
-    BLEAddress bleAddress(address);
-    if(!pClient->connect(advertisedDevice)) {
+  BLEAddress bleAddress(address);
+  if(!client->connect(advertisedDevice)) {
     // Created a client but failed to connect, don't need to keep it as it has no data */
-    NimBLEDevice::deleteClient(pClient);
-    pClient = NULL;
+    NimBLEDevice::deleteClient(client);
     ESP_LOGI(TAG,"Failed to connect, deleted client\n");
+    std::lock_guard<std::mutex> lck(mutexTags);
+    pClient = NULL;
     return false;
-    }
-    active = true;
-    ESP_LOGI(TAG,"Connected to: %s RSSI: %d\n",
-            pClient->getPeerAddress().toString().c_str(),
-            pClient->getRssi());
+  }
+  ESP_LOGI(TAG,"Connected to: %s RSSI: %d\n",
+          client->getPeerAddress().toString().c_str(),
+          client->getRssi());
 
-    // Button READ, NOTIFY
-    static const BLEUUID buttonServiceUUID("0000ffe0-0000-1000-8000-00805f9b34fb");
-    static const BLEUUID buttonCharacteristicUUID("0000ffe1-0000-1000-8000-00805f9b34fb");
-    NimBLERemoteService* remoteService = pClient->getService(buttonServiceUUID);
-    if (remoteService) {
+  // Button READ, NOTIFY
+  static const BLEUUID buttonServiceUUID("0000ffe0-0000-1000-8000-00805f9b34fb");
+  static const BLEUUID buttonCharacteristicUUID("0000ffe1-0000-1000-8000-00805f9b34fb");
+  NimBLERemoteService* remoteService = client->getService(buttonServiceUUID);
+  if (remoteService) {
     NimBLERemoteCharacteristic* remoteCharacteristic = remoteService->getCharacteristic(buttonCharacteristicUUID);
     if (remoteCharacteristic) {
         std::string value = remoteCharacteristic->readValue();  // Read the value of the characteristic.
@@ -197,23 +208,27 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
 
         remoteCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true); 
 */
-
         remoteCharacteristic->registerForNotify(buttonNotifyCallback);
     }
-    }
-    toggleBeepOnLost(false);
-    updateBattery();
+  }
+  toggleBeepOnLost(client, false);
+  updateBattery(client);
 
-    updateGUI();
+  updateGUI_locked();
 
-    toggleBeep(true);  // Welcome beep
-    delay(300);        //TODO remove delay and schedule this in the loop somehow
-    toggleBeep(false);
-    return true;
+  toggleBeep(client, true);  // Welcome beep
+  delay(300);        //TODO remove delay and schedule this in the loop somehow
+  toggleBeep(client, false);
+
+  std::lock_guard<std::mutex> lck(mutexTags);
+  active = true;
+
+  return true;
 }
 
 void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelLap, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat)
 {
+  std::lock_guard<std::mutex> lck(mutexTags);
   ledColor = ledCol;
   labelName = labelNam;
   labelLaps = labelLap;
@@ -223,6 +238,12 @@ void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * lab
 }
 
 void iTag::updateGUI(void)
+{
+  std::lock_guard<std::mutex> lck(mutexTags);
+  updateGUI_locked();
+}
+
+void iTag::updateGUI_locked(void)
 {
   lv_led_set_color(ledColor, lv_color_hex(color0));
   lv_label_set_text(labelName, name.c_str());
@@ -282,6 +303,7 @@ void showiTagStatus()
   ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
   {
+    std::lock_guard<std::mutex> lck(mutexTags);
     if(iTags[j].active) {
       ESP_LOGI(TAG,"Active: %s %d%% Laps: %5d | %s", iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].laps , iTags[j].name.c_str());
     }
@@ -298,6 +320,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
     for(int j=0; j<ITAG_COUNT; j++)
     {
+      std::lock_guard<std::mutex> lck(mutexTags);
       if(advertisedDevice->getAddress().toString() == iTags[j].address) {
         ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
 
