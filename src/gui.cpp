@@ -67,15 +67,18 @@ static lv_color_t *disp_draw_buf;
 static lv_disp_drv_t disp_drv;
 
 // GUI objects
-static lv_style_t style_text_muted;
-static lv_style_t style_title;
-lv_style_t style_icon;
-lv_style_t style_icon_off;
-static lv_style_t style_bullet;
+static lv_style_t styleTextMuted;
+static lv_style_t styleTitle;
+static lv_style_t styleLargeText;
+static lv_style_t styleTagText;
+lv_style_t styleIcon;
+lv_style_t styleIconOff;
+static lv_style_t styleBullet;
 static lv_obj_t *labelRaceTime;
 
-static const lv_font_t * font_large = LV_FONT_DEFAULT;
 static const lv_font_t * font_normal = LV_FONT_DEFAULT;
+static const lv_font_t * font_large = LV_FONT_DEFAULT;
+static const lv_font_t * font_largest = LV_FONT_DEFAULT;
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
@@ -96,27 +99,27 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 
     lv_obj_t * labelName = lv_label_create(panel1);
     lv_label_set_text(labelName, "");
-    lv_obj_add_style(labelName, &style_title, 0);
+    lv_obj_add_style(labelName, &styleTagText, 0);
     lv_label_set_long_mode(labelName, LV_LABEL_LONG_CLIP);
     lv_obj_set_grid_cell(labelName, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * lapsLabel = lv_label_create(panel1);
-    lv_obj_add_style(lapsLabel, &style_title, 0);
+    lv_obj_add_style(lapsLabel, &styleTagText, 0);
     lv_label_set_text(lapsLabel, "Laps:");
     lv_obj_set_grid_cell(lapsLabel, LV_GRID_ALIGN_END, 2, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * labelLaps = lv_label_create(panel1);
     lv_label_set_text(labelLaps, "");
-    lv_obj_add_style(labelLaps, &style_title, 0);
+    lv_obj_add_style(labelLaps, &styleTagText, 0);
     lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, 3, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
-    lv_obj_add_style(labelConnectionStatus, &style_icon, 0);
+    lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
     lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
     lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, 4, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * labelBatterySymbol = lv_label_create(panel1);
-    lv_obj_add_style(labelBatterySymbol, &style_icon, 0);
+    lv_obj_add_style(labelBatterySymbol, &styleIcon, 0);
     lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
     lv_obj_set_grid_cell(labelBatterySymbol, LV_GRID_ALIGN_END, 5, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
@@ -150,6 +153,11 @@ void createGUI(void)
   lv_coord_t tab_h = 70;
   static lv_obj_t * tv;
 
+#if LV_FONT_MONTSERRAT_36
+  font_largest     = &lv_font_montserrat_36;
+#else
+  LV_LOG_WARN("LV_FONT_MONTSERRAT_36 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
+#endif
 
 #if LV_FONT_MONTSERRAT_24
   font_large     = &lv_font_montserrat_24;
@@ -167,25 +175,31 @@ void createGUI(void)
                         font_normal);
 #endif
 
-  lv_style_init(&style_text_muted);
-  lv_style_set_text_opa(&style_text_muted, LV_OPA_70);
+  lv_style_init(&styleTextMuted);
+  lv_style_set_text_opa(&styleTextMuted, LV_OPA_70);
 
-  lv_style_init(&style_title);
-  lv_style_set_text_font(&style_title, font_large);
+  lv_style_init(&styleTitle);
+  lv_style_set_text_font(&styleTitle, font_large);
 
-  lv_style_init(&style_icon);
-  lv_style_set_text_color(&style_icon, lv_theme_get_color_primary(NULL));
-  lv_style_set_text_font(&style_icon, font_large);
+  lv_style_init(&styleLargeText);
+  lv_style_set_text_font(&styleLargeText, font_largest);
 
-  lv_style_init(&style_icon_off);
-  lv_style_set_text_color(&style_icon_off, lv_theme_get_color_primary(NULL));
-  lv_style_set_text_opa(&style_icon_off, LV_OPA_50);
-  lv_style_set_text_font(&style_icon_off, font_large);
+  lv_style_init(&styleTagText);
+  lv_style_set_text_font(&styleTagText, font_largest);
+
+  lv_style_init(&styleIcon);
+  lv_style_set_text_color(&styleIcon, lv_theme_get_color_primary(NULL));
+  lv_style_set_text_font(&styleIcon, font_largest);
+
+  lv_style_init(&styleIconOff);
+  lv_style_set_text_color(&styleIconOff, lv_theme_get_color_primary(NULL));
+  lv_style_set_text_opa(&styleIconOff, LV_OPA_50);
+  lv_style_set_text_font(&styleIconOff, font_largest);
 
 
-  lv_style_init(&style_bullet);
-  lv_style_set_border_width(&style_bullet, 0);
-  lv_style_set_radius(&style_bullet, LV_RADIUS_CIRCLE);
+  lv_style_init(&styleBullet);
+  lv_style_set_border_width(&styleBullet, 0);
+  lv_style_set_radius(&styleBullet, LV_RADIUS_CIRCLE);
 
   tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, tab_h);
 
@@ -202,25 +216,24 @@ void createGUI(void)
 
   lv_obj_t * labelRaceName = lv_label_create(tab_btns);
   lv_label_set_text(labelRaceName, "Revolution Marathon");
-  lv_obj_add_style(labelRaceName, &style_title, 0);
+  lv_obj_add_style(labelRaceName, &styleTitle, 0);
   lv_obj_align_to(labelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
 
   lv_obj_t * label = lv_label_create(tab_btns);
   lv_label_set_text(label, "Crazy Capy Time");
-  lv_obj_add_style(label, &style_text_muted, 0);
+  lv_obj_add_style(label, &styleTextMuted, 0);
   lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
 
   labelRaceTime = lv_label_create(tab_btns);
   lv_label_set_text(labelRaceTime, "00:00:00");
-  lv_obj_add_style(labelRaceTime, &style_title, 0);
+  lv_obj_add_style(labelRaceTime, &styleLargeText, 0);
   lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
 
 
 
   lv_obj_t * t1 = lv_tabview_add_tab(tv, "Race");
-
+ 
   createGUITabRace(t1);
-
 }
 
 
