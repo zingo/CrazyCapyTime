@@ -227,18 +227,16 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
   toggleBeepOnLost(client, false);
   updateBattery(client);
 
-  //updateGUI();
-
-  toggleBeep(client, true);  // Welcome beep
-  delay(200);        //TODO remove delay and schedule this in the loop somehow
-  toggleBeep(client, false);
+  //toggleBeep(client, true);  // Welcome beep
+  //delay(200);        //TODO remove delay and schedule this in the loop somehow
+  //toggleBeep(client, false);
 
   {
     std::lock_guard<std::mutex> lck(mutexTags);
     timeLastSeen = rtc.getTimeStruct();
     timeLastShownUp = timeLastSeen;
     active = true;
-    updated = true;
+    updated = true; // will trigger GUI update later
   }
 
 #ifdef HANDLE_LAP_ON_SCAN
