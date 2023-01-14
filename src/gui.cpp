@@ -71,14 +71,16 @@ static lv_style_t styleTextMuted;
 static lv_style_t styleTitle;
 static lv_style_t styleLargeText;
 static lv_style_t styleTagText;
+static lv_style_t styleTime;
 lv_style_t styleIcon;
 lv_style_t styleIconOff;
 static lv_style_t styleBullet;
 static lv_obj_t *labelRaceTime;
 
-static const lv_font_t * font_normal = LV_FONT_DEFAULT;
-static const lv_font_t * font_large = LV_FONT_DEFAULT;
-static const lv_font_t * font_largest = LV_FONT_DEFAULT;
+static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
+static const lv_font_t * fontLarge = LV_FONT_DEFAULT;
+static const lv_font_t * fontLargest = LV_FONT_DEFAULT;
+static const lv_font_t * fontTime = LV_FONT_DEFAULT;
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
@@ -150,69 +152,61 @@ static void createGUITabRace(lv_obj_t * parent)
 
 void createGUI(void)
 {
-  lv_coord_t tab_h = 70;
   static lv_obj_t * tv;
 
-#if LV_FONT_MONTSERRAT_36
-  font_largest     = &lv_font_montserrat_36;
-#else
-  LV_LOG_WARN("LV_FONT_MONTSERRAT_36 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
-#endif
+  fontNormal  = &lv_font_montserrat_16;
+  fontLarge   = &lv_font_montserrat_24;
+  fontLargest = &lv_font_montserrat_36;
+  fontTime    = &lv_font_montserrat_48;
 
-#if LV_FONT_MONTSERRAT_24
-  font_large     = &lv_font_montserrat_24;
-#else
-  LV_LOG_WARN("LV_FONT_MONTSERRAT_24 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
-#endif
-#if LV_FONT_MONTSERRAT_16
-  font_normal    = &lv_font_montserrat_16;
-#else
-  LV_LOG_WARN("LV_FONT_MONTSERRAT_16 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
-#endif
 
 #if LV_USE_THEME_DEFAULT
   lv_theme_default_init(NULL, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), LV_THEME_DEFAULT_DARK,
-                        font_normal);
+                        fontNormal);
 #endif
 
   lv_style_init(&styleTextMuted);
   lv_style_set_text_opa(&styleTextMuted, LV_OPA_70);
 
   lv_style_init(&styleTitle);
-  lv_style_set_text_font(&styleTitle, font_large);
+  lv_style_set_text_font(&styleTitle, fontLarge);
 
   lv_style_init(&styleLargeText);
-  lv_style_set_text_font(&styleLargeText, font_largest);
+  lv_style_set_text_font(&styleLargeText, fontLargest);
 
   lv_style_init(&styleTagText);
-  lv_style_set_text_font(&styleTagText, font_largest);
+  lv_style_set_text_font(&styleTagText, fontLargest);
+
+  lv_style_init(&styleTime);
+  lv_style_set_text_font(&styleTime, fontTime);
+
 
   lv_style_init(&styleIcon);
   lv_style_set_text_color(&styleIcon, lv_theme_get_color_primary(NULL));
-  lv_style_set_text_font(&styleIcon, font_largest);
+  lv_style_set_text_font(&styleIcon, fontLargest);
 
   lv_style_init(&styleIconOff);
   lv_style_set_text_color(&styleIconOff, lv_theme_get_color_primary(NULL));
   lv_style_set_text_opa(&styleIconOff, LV_OPA_50);
-  lv_style_set_text_font(&styleIconOff, font_largest);
+  lv_style_set_text_font(&styleIconOff, fontLargest);
 
 
   lv_style_init(&styleBullet);
   lv_style_set_border_width(&styleBullet, 0);
   lv_style_set_radius(&styleBullet, LV_RADIUS_CIRCLE);
 
-  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, tab_h);
+  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 70); //70 - hight of tab area
 
-  lv_obj_set_style_text_font(lv_scr_act(), font_normal, 0);
+  lv_obj_set_style_text_font(lv_scr_act(), fontNormal, 0);
 
-
+#define TAB_POS ((LV_HOR_RES / 4)*3)
   lv_obj_t * tab_btns = lv_tabview_get_tab_btns(tv);
-  lv_obj_set_style_pad_left(tab_btns, LV_HOR_RES / 2, 0);
+  lv_obj_set_style_pad_left(tab_btns, TAB_POS, 0);
 
   lv_obj_t * logo = lv_img_create(tab_btns);
 //  LV_IMG_DECLARE(img_lvgl_logo);
 //  lv_img_set_src(logo, &img_lvgl_logo);
-  lv_obj_align(logo, LV_ALIGN_LEFT_MID, -LV_HOR_RES / 2 + 25, 0);
+  lv_obj_align(logo, LV_ALIGN_LEFT_MID, -TAB_POS + 25, 0);
 
   lv_obj_t * labelRaceName = lv_label_create(tab_btns);
   lv_label_set_text(labelRaceName, "Revolution Marathon");
@@ -226,8 +220,10 @@ void createGUI(void)
 
   labelRaceTime = lv_label_create(tab_btns);
   lv_label_set_text(labelRaceTime, "00:00:00");
-  lv_obj_add_style(labelRaceTime, &styleLargeText, 0);
-  lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+  lv_obj_add_style(labelRaceTime, &styleTime, 0);
+  lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
+  //lv_obj_align(logo, LV_ALIGN_LEFT_MID, -TAB_POS + (LV_HOR_RES / 2), 0);
+
 
 
 
