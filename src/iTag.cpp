@@ -14,7 +14,6 @@
 #define SCAN_INTERVAL 2000
 #define BT_SCAN_TIME 2 // in seconds
 
-
 static uint16_t appId = 3;
 
 //When the BLE Server sends a new button reading with the notify property
@@ -25,30 +24,50 @@ static void buttonNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacterist
 
 class ClientCallbacks : public NimBLEClientCallbacks
 {
-    void onConnect(NimBLEClient* pClient) {
-    for(int j=0; j<ITAG_COUNT; j++)
+    void onConnect(NimBLEClient* pClient)
     {
+      for(int j=0; j<ITAG_COUNT; j++)
+      {
         if(pClient->getPeerAddress().toString() == iTags[j].address) {
           // TODO add disconnect/reconnect detection with minimum time and stuff
-          ESP_LOGI(TAG,"%s Connected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
           iTags[j].connected = true;
           if (iTags[j].active) {
-            iTags[j].laps++;
-            iTags[j].updateGUI();
+            tm timeNow = rtc.getTimeStruct();
+            double timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
+
+            if (timeSinceLastSeen>2*60)
+            {
+              ESP_LOGI(TAG,"%s Connected Time: %s delta %f NEW LAP", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
+              iTags[j].timeLastShownUp = timeNow;
+              iTags[j].laps++;
+            }
+            else
+            {
+              ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
+              iTags[j].timeLastSeen = rtc.getTimeStruct();
+            }
           }
+          else {
+            ESP_LOGI(TAG,"%s Connected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+          }
+          iTags[j].updateGUI();
         }
-    }
+      }
     };
 
-    void onDisconnect(NimBLEClient* pClient) {
-    for(int j=0; j<ITAG_COUNT; j++)
+    void onDisconnect(NimBLEClient* pClient)
     {
+      for(int j=0; j<ITAG_COUNT; j++)
+      {
         if(pClient->getPeerAddress().toString() == iTags[j].address) {
         ESP_LOGI(TAG,"%s Disconnected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
         iTags[j].connected = false;
+        if (iTags[j].active) {
+            iTags[j].timeLastSeen = rtc.getTimeStruct();
+        }
         iTags[j].updateGUI();
         }
-    }
+      }
     };
 };
 

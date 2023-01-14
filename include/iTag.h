@@ -15,8 +15,11 @@ class iTag {
     uint32_t battery;
     bool active;    // As in part of race
     bool connected; // As near enough right now
+    uint32_t Last;
+    uint32_t lapsScan;
     uint32_t laps;
-
+    tm timeLastShownUp;  // End time of last lap
+    tm timeLastSeen;     // Start time of current lap (or a short while after)
     iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
     bool updateBattery();
     bool toggleBeep(bool beep);

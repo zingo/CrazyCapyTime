@@ -72,6 +72,7 @@ static lv_style_t style_title;
 lv_style_t style_icon;
 lv_style_t style_icon_off;
 static lv_style_t style_bullet;
+static lv_obj_t *labelRaceTime;
 
 static const lv_font_t * font_large = LV_FONT_DEFAULT;
 static const lv_font_t * font_normal = LV_FONT_DEFAULT;
@@ -144,9 +145,6 @@ static void createGUITabRace(lv_obj_t * parent)
   }
 }
 
-
-
-
 void createGUI(void)
 {
   lv_coord_t tab_h = 70;
@@ -198,23 +196,28 @@ void createGUI(void)
   lv_obj_set_style_pad_left(tab_btns, LV_HOR_RES / 2, 0);
 
   lv_obj_t * logo = lv_img_create(tab_btns);
-  LV_IMG_DECLARE(img_lvgl_logo);
-  lv_img_set_src(logo, &img_lvgl_logo);
+//  LV_IMG_DECLARE(img_lvgl_logo);
+//  lv_img_set_src(logo, &img_lvgl_logo);
   lv_obj_align(logo, LV_ALIGN_LEFT_MID, -LV_HOR_RES / 2 + 25, 0);
 
-  lv_obj_t * label = lv_label_create(tab_btns);
-  lv_label_set_text(label, "Revolution Marathon");
-  lv_obj_add_style(label, &style_title, 0);
-  lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+  lv_obj_t * labelRaceName = lv_label_create(tab_btns);
+  lv_label_set_text(labelRaceName, "Revolution Marathon");
+  lv_obj_add_style(labelRaceName, &style_title, 0);
+  lv_obj_align_to(labelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
 
-  label = lv_label_create(tab_btns);
+  lv_obj_t * label = lv_label_create(tab_btns);
   lv_label_set_text(label, "Crazy Capy Time");
   lv_obj_add_style(label, &style_text_muted, 0);
   lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
 
+  labelRaceTime = lv_label_create(tab_btns);
+  lv_label_set_text(labelRaceTime, "00:00:00");
+  lv_obj_add_style(labelRaceTime, &style_title, 0);
+  lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+
+
+
   lv_obj_t * t1 = lv_tabview_add_tab(tv, "Race");
-  lv_obj_t * t2 = lv_tabview_add_tab(tv, "Analytics");
-  lv_obj_t * t3 = lv_tabview_add_tab(tv, "Config");
 
   createGUITabRace(t1);
 
@@ -264,6 +267,10 @@ void lvgl_touchPadReadCallback(lv_indev_drv_t *indev_driver, lv_indev_data_t *da
   }
 }
 
+void updateGUITime()
+{
+  lv_label_set_text(labelRaceTime, rtc.getTime("%H:%M:%S").c_str());
+}
 
 void initLVGL()
 {
@@ -317,6 +324,7 @@ void initLVGL()
 
 void loopHandlLVGL()
 {
+  updateGUITime();
   lv_timer_handler();
 }
 
