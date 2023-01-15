@@ -19,6 +19,18 @@
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
 
+bool updateTagsNow = false;
+
+std::string getTimeFormat(String format, struct tm *timeinfo)
+{
+	char s[128];
+	char c[128];
+	format.toCharArray(c, 127);
+	strftime(s, 127, c, timeinfo);
+	return std::string(s);
+}
+
+
 //When the BLE Server sends a new button reading with the notify property
 static void buttonNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
                                         uint8_t* pData, size_t length, bool isNotify) {
@@ -47,6 +59,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
             else {
               ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
               iTags[j].timeLastSeen = rtc.getTimeStruct();
+              iTags[j].timeSinceLastSeen = 0;
             }
           }
           else {
@@ -67,6 +80,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
           iTags[j].connected = false;
           if (iTags[j].active) {
               iTags[j].timeLastSeen = rtc.getTimeStruct();
+              iTags[j].timeSinceLastSeen = 0;
           }
           iTags[j].updateGUI_locked();
         }
@@ -81,10 +95,13 @@ iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t
     name = inName;
     color0 = inColor0;
     color1 = inColor1;
-    battery = 0;
+    battery = -1; //Unknown or Not read yet
     active = false;
     connected = false;
     laps = 0;
+    timeLastShownUp = rtc.getTimeStruct();
+    timeLastSeen = rtc.getTimeStruct();
+    timeSinceLastSeen = 0;
     updated = false;
 #ifndef HANDLE_LAP_ON_SCAN
     pClient = NULL;
@@ -116,7 +133,6 @@ bool iTag::updateBattery( NimBLEClient* client) {
     }
     return false;
 }
-
 
 bool iTag::toggleBeep(NimBLEClient* client, bool beep) {
     // Alert WRITE, WRITE_WITHOUT_RESPONSE, NOTIFY 0x00-NoAlert 0x01-MildAlert 0x02-HighAlert
@@ -235,6 +251,7 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
     std::lock_guard<std::mutex> lck(mutexTags);
     timeLastSeen = rtc.getTimeStruct();
     timeLastShownUp = timeLastSeen;
+    timeSinceLastSeen = 0;
     active = true;
     updated = true; // will trigger GUI update later
   }
@@ -245,12 +262,14 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
   return true;
 }
 
-void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelLap, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat)
+void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat)
 {
   std::lock_guard<std::mutex> lck(mutexTags);
   ledColor = ledCol;
   labelName = labelNam;
+  labelDist = labelDistance;
   labelLaps = labelLap;
+  labelTime = labelTim;
   labelConnectionStatus = labelConnStatus;
   labelBatterySymbol = labelBatterySym;
   labelBattery = labelBat;
@@ -266,13 +285,22 @@ void iTag::updateGUI_locked(void)
 {
   lv_led_set_color(ledColor, lv_color_hex(color0));
   lv_label_set_text(labelName, name.c_str());
-  lv_label_set_text(labelLaps, std::to_string(laps).c_str());
+//  lv_label_set_text(labelLaps, (std::string("L:") + std::to_string(laps)).c_str());
+  lv_label_set_text_fmt(labelDist, "%4.3f km",(laps*RACE_DISTANCE_LAP)/1000.0);
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",laps,RACE_LAPS);
+  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeLastShownUp.tm_mday-1)*24+timeLastShownUp.tm_hour,timeLastShownUp.tm_min,timeLastShownUp.tm_sec);
+  //getTimeFormat("%d-%H:%M:%S",&timeLastShownUp).c_str()
 
   if (active)
   {
     //lv_obj_set_style_opa(labelConnectionStatus, 0, 0);
     if (connected) {
-      lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_OPEN);
+      if (timeSinceLastSeen < 10) {
+        lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_OPEN);
+      }
+      else {
+        lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_CLOSE);
+      }
     }
     else {
       lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
@@ -282,23 +310,28 @@ void iTag::updateGUI_locked(void)
     //lv_obj_set_style_opa(labelConnectionStatus, 50, 0);
     lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
   }
-
-  if (battery >= 90) {
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
-  }
-  else if (battery >= 70) {
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_3);
-  }
-  else if (battery >= 40) {
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_2);
-  }
-  else if (battery >= 10) {
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_1);
+  if (battery > 0) {  
+    if (battery >= 90) {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
+    }
+    else if (battery >= 70) {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_3);
+    }
+    else if (battery >= 40) {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_2);
+    }
+    else if (battery >= 10) {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_1);
+    }
+    else {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+    }
+    lv_label_set_text_fmt(labelBattery, "%3d%%",battery);
   }
   else {
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+    lv_label_set_text(labelBatterySymbol, "");
+    lv_label_set_text(labelBattery, "");
   }
-  lv_label_set_text(labelBattery, std::to_string(battery).c_str());
 }
 
 
@@ -316,20 +349,34 @@ static NimBLEAdvertisedDevice* advDevice;
 static int32_t doConnect = -1; // -1 = none else it shows index into iTags to connect
 uint32_t lastScanTime = 0;
 
+void startRaceiTags()
+{
+  tm timeNow = rtc.getTimeStruct();
+  std::lock_guard<std::mutex> lck(mutexTags);
+  for(int j=0; j<ITAG_COUNT; j++)
+  {
+    iTags[j].timeLastSeen = timeNow;
+    iTags[j].timeLastShownUp = timeNow;
+    iTags[j].timeSinceLastSeen = 0;
+    iTags[j].laps = 0;
+    iTags[j].updated = true;
+  }
+  updateTagsNow = true;
+}
 
 void updateiTagStatus()
 {
   ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
   {
-    double timeSinceLastSeen = MINIMUM_LAP_TIME_IN_SECONDS;
+    //double timeSinceLastSeen = MINIMUM_LAP_TIME_IN_SECONDS;
     std::lock_guard<std::mutex> lck(mutexTags);
     if (iTags[j].active && iTags[j].connected) {
       tm timeNow = rtc.getTimeStruct();
-      timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
+      iTags[j].timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
 
-      if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
-        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %f", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
+      if (iTags[j].timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %f", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].timeSinceLastSeen);
         //iTags[j].timeLastSeen = rtc.getTimeStruct();
         iTags[j].connected = false;
       }
@@ -341,7 +388,7 @@ void updateiTagStatus()
     }
 
     if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3.0f%s %d%% Laps: %5d | %s", timeSinceLastSeen,iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].laps , iTags[j].name.c_str());
+      ESP_LOGI(TAG,"Active: %3d%s %d%% Laps: %5d | %s", iTags[j].timeSinceLastSeen,iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].laps , iTags[j].name.c_str());
     }
   }
   ESP_LOGI(TAG,"------------------------");
@@ -382,6 +429,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             //ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", iTags[j].name.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
           }
           iTags[j].timeLastSeen = rtc.getTimeStruct();
+          iTags[j].timeSinceLastSeen = 0;
           iTags[j].updated = true; // Make it redraw when GUI loop looks at it
         }
         else {
@@ -446,7 +494,13 @@ void loopHandlTAGs()
     }
   // Show connection in log
   uint32_t now = millis();
-  if(now - lastScanTime > SCAN_INTERVAL) { 
+  if (updateTagsNow) {
+    updateTagsNow = false;
+    lastScanTime = now;
+    updateiTagStatus();
+  }
+  else if (now - lastScanTime > SCAN_INTERVAL) { 
+    updateTagsNow = false;
     lastScanTime = now;
     updateiTagStatus();
   }

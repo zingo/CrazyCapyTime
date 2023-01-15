@@ -265,7 +265,7 @@
     #define lv_snprintf  snprintf
     #define lv_vsnprintf vsnprintf
 #else   /*LV_SPRINTF_CUSTOM*/
-    #define LV_SPRINTF_USE_FLOAT 0
+    #define LV_SPRINTF_USE_FLOAT 1
 #endif  /*LV_SPRINTF_CUSTOM*/
 
 #define LV_USE_USER_DATA 1
@@ -342,10 +342,10 @@
 #define LV_FONT_MONTSERRAT_36 1
 #define LV_FONT_MONTSERRAT_38 0
 #define LV_FONT_MONTSERRAT_40 0
-#define LV_FONT_MONTSERRAT_42 0
+#define LV_FONT_MONTSERRAT_42 1
 #define LV_FONT_MONTSERRAT_44 0
 #define LV_FONT_MONTSERRAT_46 0
-#define LV_FONT_MONTSERRAT_48 1
+#define LV_FONT_MONTSERRAT_48 0
 
 /*Demonstrate special features*/
 #define LV_FONT_MONTSERRAT_12_SUBPX      0
@@ -355,7 +355,7 @@
 
 /*Pixel perfect monospace fonts*/
 #define LV_FONT_UNSCII_8  0
-#define LV_FONT_UNSCII_16 0
+#define LV_FONT_UNSCII_16 1
 
 /*Optionally declare custom fonts here.
  *You can use these fonts as default font too and they will be available globally.

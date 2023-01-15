@@ -27,7 +27,15 @@
 
 #define TAG "Main"
 
-ESP32Time rtc(3600);  // offset in seconds GMT+1
+//ESP32Time rtc(3600);  // offset in seconds GMT+1
+ESP32Time rtc(0);  // use epoc as race start TODO use real RCT time from HW or NTP
+
+
+void startRace()
+{
+  rtc.setTime(0,0);
+  startRaceiTags();
+}
 
 void setup()
 {
@@ -40,7 +48,6 @@ void setup()
   ESP_LOGI(TAG, "Setup done switching to running loop");
 
 }
-
 
 void loop()
 {

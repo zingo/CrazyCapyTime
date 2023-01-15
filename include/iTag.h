@@ -24,16 +24,17 @@ class iTag {
     uint32_t color0;      // Color of iTag
     uint32_t color1;      // Color of iTag holder
     bool active;          // As in part of race
-    uint32_t battery;
+    int32_t battery;      // 0-100 and -1 when unknown
     bool connected; // As near enough right now
     uint32_t laps;
     tm timeLastShownUp;  // End time of last lap
     tm timeLastSeen;     // Start time of current lap (or a short while after)
+    uint32_t timeSinceLastSeen; //seconds, updated now and then, used just to update GUI
     bool updated;
     iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
     bool connect(NimBLEAdvertisedDevice* advertisedDevice);
 
-    void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelLaps, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat);
+    void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat);
     void updateGUI(void);
     void updateGUI_locked(void);
 
@@ -47,7 +48,9 @@ class iTag {
     // GUI LVGL object used when updating
     lv_obj_t * ledColor;
     lv_obj_t * labelName;
+    lv_obj_t * labelDist;
     lv_obj_t * labelLaps;
+    lv_obj_t * labelTime;
     lv_obj_t * labelConnectionStatus;
     lv_obj_t * labelBatterySymbol;
     lv_obj_t * labelBattery;
@@ -56,3 +59,5 @@ class iTag {
 
 void initiTAGs();
 void loopHandlTAGs();
+
+void startRaceiTags();
