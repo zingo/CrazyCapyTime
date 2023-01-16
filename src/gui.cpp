@@ -87,17 +87,29 @@ static void btn_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * btn = lv_event_get_target(e);
-    if(code == LV_EVENT_CLICKED) {
-        /*Get the first child of the button which is the label and change its text*/
-        //lv_obj_t * label = lv_obj_get_child(btn, 0);
-        //lv_label_set_text_fmt(label, "Button: %d", cnt);
-        startRace();
+    if(code == LV_EVENT_SHORT_CLICKED) {
+        if (!raceOngoing)
+        {
+          lv_obj_t * label = lv_obj_get_child(btn, 0);
+          lv_label_set_text_fmt(label, "Race Starts soon");
+          startRace();
+        }
     }
 
     // TODO add protection to not start race again if allready started maybe longpress
     // could be used to override race restart protection
-    //if(code == LV_EVENT_LONG_PRESSED) {
-    //}
+    if(code == LV_EVENT_LONG_PRESSED) {
+      if (raceOngoing) {
+        raceOngoing = false;
+        lv_obj_t * label = lv_obj_get_child(btn, 0);
+        lv_label_set_text_fmt(label, "Start!");
+      }
+      else {
+        raceOngoing = true;
+        lv_obj_t * label = lv_obj_get_child(btn, 0);
+        lv_label_set_text_fmt(label, "Race continued!");
+      }
+    }
 }
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
@@ -253,7 +265,7 @@ void createGUI(void)
   lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, NULL);
 
   labelRaceTime = lv_label_create(btn);          /*Add a label to the button*/
-  lv_label_set_text(labelRaceTime, "START!");                     /*Set the labels text*/
+  lv_label_set_text(labelRaceTime, "Start!");                     /*Set the labels text*/
   lv_obj_center(labelRaceTime);
   lv_obj_add_style(labelRaceTime, &styleTime, 0);
 
@@ -310,7 +322,9 @@ void lvgl_touchPadReadCallback(lv_indev_drv_t *indev_driver, lv_indev_data_t *da
 
 void updateGUITime()
 {
-  lv_label_set_text(labelRaceTime, rtc.getTime("%H:%M:%S").c_str());
+  if (raceOngoing) {
+    lv_label_set_text(labelRaceTime, rtc.getTime("%H:%M:%S").c_str());
+  }
 }
 
 void initLVGL()

@@ -13,8 +13,7 @@
 #define TAG "iTAG"
 
 #define SCAN_INTERVAL 3000
-#define BT_SCAN_TIME 2 // in seconds
-#define MINIMUM_LAP_TIME_IN_SECONDS 2*60
+#define BT_SCAN_TIME 5 // in seconds
 
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;

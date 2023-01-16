@@ -30,15 +30,20 @@
 //ESP32Time rtc(3600);  // offset in seconds GMT+1
 ESP32Time rtc(0);  // use epoc as race start TODO use real RCT time from HW or NTP
 
+bool raceOngoing = false;
 
 void startRace()
 {
+  // TODO Add count down until start 10,9,8,...,0 START!
   rtc.setTime(0,0);
   startRaceiTags();
+  raceOngoing = true;
+
 }
 
 void setup()
 {
+  raceOngoing = false;
   //delay(1000);
   Serial.begin(115200);
   ESP_LOGI(TAG, "Crazy Capy Time setup");
