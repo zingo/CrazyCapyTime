@@ -98,8 +98,10 @@ class iTag {
     void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat);
     void updateGUI(void);
     void updateGUI_locked(void);
-
+    int getRSSI() {return RSSI;}
+    void setRSSI(int val) {RSSI=val;}
   private:
+    int RSSI;
     bool updateBattery(NimBLEClient* client);
     bool toggleBeep(NimBLEClient* client, bool beep);
     bool toggleBeepOnLost(NimBLEClient* client, bool beep);

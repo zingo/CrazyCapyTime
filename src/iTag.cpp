@@ -42,6 +42,7 @@ iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t
     color0 = inColor0;
     color1 = inColor1;
     battery = -1; //Unknown or Not read yet
+    RSSI = -9999;
     active = false;
     connected = false;
     participant.setName(inName);
@@ -223,7 +224,7 @@ void iTag::updateGUI_locked(void)
   {
     //lv_obj_set_style_opa(labelConnectionStatus, 0, 0);
     if (connected) {
-      if (participant.getTimeSinceLastSeen() < 10) {
+      if (participant.getTimeSinceLastSeen() < 20) {
         lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_OPEN);
       }
       else {
@@ -235,30 +236,45 @@ void iTag::updateGUI_locked(void)
     }
   }
   else {
-    //lv_obj_set_style_opa(labelConnectionStatus, 50, 0);
-    lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
+    //lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
+    lv_label_set_text(labelConnectionStatus, "");
   }
-  if (battery > 0) {  
-    if (battery >= 90) {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
-    }
-    else if (battery >= 70) {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_3);
-    }
-    else if (battery >= 40) {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_2);
-    }
-    else if (battery >= 10) {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_1);
+
+  if (raceOngoing)
+  {
+    if (connected && participant.getTimeSinceLastSeen() < 20) {
+      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_WIFI);
+      lv_label_set_text_fmt(labelBattery, "%d", getRSSI());
     }
     else {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+      lv_label_set_text(labelBatterySymbol, "");
+      lv_label_set_text(labelBattery, "");
+
     }
-    lv_label_set_text_fmt(labelBattery, "%3d%%",battery);
   }
   else {
-    lv_label_set_text(labelBatterySymbol, "");
-    lv_label_set_text(labelBattery, "");
+    if (battery > 0) {  
+      if (battery >= 90) {
+        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
+      }
+      else if (battery >= 70) {
+        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_3);
+      }
+      else if (battery >= 40) {
+        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_2);
+      }
+      else if (battery >= 10) {
+        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_1);
+      }
+      else {
+        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+      }
+      lv_label_set_text_fmt(labelBattery, "%3d%%",battery);
+    }
+    else {
+      lv_label_set_text(labelBatterySymbol, "");
+      lv_label_set_text(labelBattery, "");
+    }
   }
 }
 
@@ -318,7 +334,7 @@ void updateiTagStatus()
     }
 
     if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3d/%3d %s %d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+      ESP_LOGI(TAG,"Active: %3d/%3d %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
     }
   }
   ESP_LOGI(TAG,"------------------------");
@@ -339,6 +355,12 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         iTags[j].connected = true;
         iTags[j].participant.setTimeSinceLastSeen(0);
+        if (advertisedDevice->haveRSSI()) {
+          iTags[j].setRSSI(advertisedDevice->getRSSI());
+        }
+        else {
+          iTags[j].setRSSI(-9999);
+        }
         tm timeNow = rtc.getTimeStruct();
         time_t newLapTime = mktime(&timeNow);
         time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
