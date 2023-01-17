@@ -12,8 +12,8 @@
 
 #define TAG "iTAG"
 
-#define SCAN_INTERVAL 3000
-#define BT_SCAN_TIME 4 // in seconds
+#define SCAN_INTERVAL 2000 //How often should we update GUI
+#define BT_SCAN_TIME 5 // in seconds
 
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
@@ -314,11 +314,11 @@ void updateiTagStatus()
     }
     if (iTags[j].updated) {
       iTags[j].updated = false;
-      iTags[j].updateGUI_locked();
+      iTags[j].updateGUI_locked(); //TODO don't update all, only what is needed
     }
 
     if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3d %s %d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+      ESP_LOGI(TAG,"Active: %3d/%3d %s %d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
     }
   }
   ESP_LOGI(TAG,"------------------------");
