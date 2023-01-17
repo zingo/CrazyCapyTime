@@ -7,6 +7,7 @@
 */
 #include <mutex>
 #include <NimBLEDevice.h>
+#include <ArduinoJson.h>
 #include "common.h"
 #include "iTag.h"
 
@@ -423,6 +424,54 @@ void scanBTCompleteCB(NimBLEScanResults scanResults)
   }
 }
 
+void saveRace()
+{
+  DynamicJsonDocument raceJson(50000);
+  //JsonObject raceJson = jsonDoc.createObject();
+  //char JSONmessageBuffer[200];
+
+  raceJson["Appname"] = "CrazyCapyTime";
+  raceJson["filetype"] = "racedata";
+  raceJson["fileformatversion"] = "0.1";
+  raceJson["start"] = 0;
+  raceJson["distance"] = RACE_DISTANCE_TOTAL;
+  raceJson["laps"] = RACE_LAPS;
+  raceJson["lapsdistance"] = RACE_DISTANCE_LAP;
+  raceJson["tags"] = ITAG_COUNT;
+
+  JsonArray tagArrayJson = raceJson.createNestedArray("tag");
+  for(int i=0; i<ITAG_COUNT; i++)
+  {
+    //JsonObject tagJson = raceJson.createNestedObject("tag");
+    JsonObject tagJson = tagArrayJson.createNestedObject();
+    tagJson["address"] = iTags[i].address;
+    tagJson["color0"] = iTags[i].color0;
+    tagJson["color1"] = iTags[i].color1;
+    tagJson["active"] = iTags[i].active;
+    JsonObject participantJson = tagJson.createNestedObject("participant"); 
+    participantJson["name"] = iTags[i].participant.getName();
+    participantJson["laps"] = iTags[i].participant.getLapCount();
+    participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
+
+    JsonArray lapArrayJson = tagJson.createNestedArray("lap");
+    for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
+    {
+      JsonObject lapJson = lapArrayJson.createNestedObject(); 
+      lapJson["StartTime"] = iTags[i].participant.getLap(lap).getLapStart();
+      lapJson["LastSeen"] = iTags[i].participant.getLap(lap).getLastSeen();
+    }
+  }
+  // Print a minified JSON document to the serial port
+  //serializeJson(raceJson, Serial);
+  // Same with a prettified document
+  //serializeJsonPretty(raceJson, Serial);
+  String output = "";
+  serializeJsonPretty(raceJson, output);
+  ESP_LOGI(TAG,"json: \n%s", output.c_str());
+}
+
+
+
 void initiTAGs()
 {
   BLEScan* pBLEScan;
@@ -469,5 +518,6 @@ void loopHandlTAGs()
     updateTagsNow = false;
     lastScanTime = now;
     updateiTagStatus();
+    //saveRace();
   }
 }

@@ -19,3 +19,4 @@ extern ESP32Time rtc;
 extern bool raceOngoing;
 
 void startRace();
+void saveRace();

@@ -83,7 +83,7 @@ static const lv_font_t * fontLarge = LV_FONT_DEFAULT;
 static const lv_font_t * fontLargest = LV_FONT_DEFAULT;
 static const lv_font_t * fontTime = LV_FONT_DEFAULT;
 
-static void btn_event_cb(lv_event_t * e)
+static void btnTime_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * btn = lv_event_get_target(e);
@@ -111,6 +111,16 @@ static void btn_event_cb(lv_event_t * e)
       }
     }
 }
+
+static void btnSave_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      saveRace();
+    }
+}
+
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
@@ -186,6 +196,18 @@ static void createGUITabRace(lv_obj_t * parent)
   {
     createGUIRunnerTag(parent, j);
   }
+
+  lv_obj_t * btnSave = lv_btn_create(parent); 
+  lv_obj_align_to(btnSave, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  //lv_obj_set_pos(btnSave, 10, 10);                            /*Set its position*/
+  //lv_obj_set_size(btnSave, 120, 50);                          /*Set its size*/
+  lv_obj_add_event_cb(btnSave, btnSave_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *labelSave = lv_label_create(btnSave);          /*Add a label to the button*/
+  lv_label_set_text(labelSave, "Save");                     /*Set the labels text*/
+  lv_obj_center(labelSave);
+  lv_obj_add_style(labelSave, &styleTime, 0);
+
 }
 
 void createGUI(void)
@@ -258,16 +280,17 @@ void createGUI(void)
   lv_obj_add_style(label, &styleTextMuted, 0);
   lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
 
-  lv_obj_t * btn = lv_btn_create(tab_btns); 
-  lv_obj_align_to(btn, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
-  //lv_obj_set_pos(btn, 10, 10);                            /*Set its position*/
-  //lv_obj_set_size(btn, 120, 50);                          /*Set its size*/
-  lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_t * btnTime = lv_btn_create(tab_btns); 
+  lv_obj_align_to(btnTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
+  //lv_obj_set_pos(btnTime, 10, 10);                            /*Set its position*/
+  //lv_obj_set_size(btnTime, 120, 50);                          /*Set its size*/
+  lv_obj_add_event_cb(btnTime, btnTime_event_cb, LV_EVENT_ALL, NULL);
 
-  labelRaceTime = lv_label_create(btn);          /*Add a label to the button*/
+  labelRaceTime = lv_label_create(btnTime);          /*Add a label to the button*/
   lv_label_set_text(labelRaceTime, "Start!");                     /*Set the labels text*/
   lv_obj_center(labelRaceTime);
   lv_obj_add_style(labelRaceTime, &styleTime, 0);
+
 
 /*
   labelRaceTime = lv_label_create(tab_btns);

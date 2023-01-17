@@ -36,7 +36,6 @@ class lapData {
     //uint32_t Distance; // Not neede for now all laps have equal length
 };
 
-
 class participantData {
   public:
     participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { lapsData.resize(MAX_SAVED_LAPS); }
@@ -62,6 +61,7 @@ class participantData {
       }
     }
 
+    lapData& getLap(uint32_t lap) { return lapsData.at(lap);}
     time_t getCurrentLapStart() {return lapsData.at(laps).getLapStart();}
     void setCurrentLapStart(time_t timeSinceRaceStart) {lapsData.at(laps).setLapStart(timeSinceRaceStart);}
     time_t getCurrentLastSeen() {return lapsData.at(laps).getLastSeen();}
@@ -115,7 +115,6 @@ class iTag {
     lv_obj_t * labelConnectionStatus;
     lv_obj_t * labelBatterySymbol;
     lv_obj_t * labelBattery;
-
 };
 
 void initiTAGs();
