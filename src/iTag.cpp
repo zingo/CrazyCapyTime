@@ -184,10 +184,7 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
     }
   }
 #endif
-  // TODO toggleBeepOnLost() probably only need to be called once ever, 
-  //      to reconfig the tag if true we don't need to spend time on it
-  //      on every start
-  //toggleBeepOnLost(client, false); 
+  toggleBeepOnLost(client, false);
   updateBattery(client);
 
   //toggleBeep(client, true);  // Welcome beep
@@ -309,7 +306,7 @@ void iTag::updateGUI_locked(void)
 iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:7e:be:67", "Zingo",   ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //Orange
   iTag("ff:ff:10:7d:d2:08", "Stefan",  ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE), //Dark blue
-  iTag("ff:ff:10:82:ef:1e", "Johan(na)", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
+  iTag("ff:ff:10:82:ef:1e", "Johan(na)?", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
 };
 static NimBLEAdvertisedDevice* advDevice;
 static int32_t doConnect = -1; // -1 = none else it shows index into iTags to connect
