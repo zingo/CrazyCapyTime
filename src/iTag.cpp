@@ -13,7 +13,7 @@
 #define TAG "iTAG"
 
 #define SCAN_INTERVAL 3000
-#define BT_SCAN_TIME 5 // in seconds
+#define BT_SCAN_TIME 4 // in seconds
 
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
@@ -48,7 +48,7 @@ class ClientCallbacks : public NimBLEClientCallbacks
           iTags[j].connected = true;
           if (iTags[j].active) {
             tm timeNow = rtc.getTimeStruct();
-            double timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
+            uint32_t timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
 
             if (timeSinceLastSeen>2*60) {
               ESP_LOGI(TAG,"%s Connected Time: %s delta %f NEW LAP", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
@@ -91,16 +91,13 @@ class ClientCallbacks : public NimBLEClientCallbacks
 iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1)
 {
     address = inAddress;
-    name = inName;
     color0 = inColor0;
     color1 = inColor1;
     battery = -1; //Unknown or Not read yet
     active = false;
     connected = false;
-    laps = 0;
-    timeLastShownUp = rtc.getTimeStruct();
-    timeLastSeen = rtc.getTimeStruct();
-    timeSinceLastSeen = 0;
+    participant.setName(inName);
+    participant.clearLaps();
     updated = false;
 #ifndef HANDLE_LAP_ON_SCAN
     pClient = NULL;
@@ -248,9 +245,9 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
 
   {
     std::lock_guard<std::mutex> lck(mutexTags);
-    timeLastSeen = rtc.getTimeStruct();
-    timeLastShownUp = timeLastSeen;
-    timeSinceLastSeen = 0;
+    // TODO clear lap data?
+    participant.setCurrentLap(0,0); // TODO set race start so a late tag get full race
+    participant.setTimeSinceLastSeen(0);
     active = true;
     updated = true; // will trigger GUI update later
   }
@@ -283,18 +280,22 @@ void iTag::updateGUI(void)
 void iTag::updateGUI_locked(void)
 {
   lv_led_set_color(ledColor, lv_color_hex(color0));
-  lv_label_set_text(labelName, name.c_str());
+  lv_label_set_text(labelName, participant.getName().c_str());
 //  lv_label_set_text(labelLaps, (std::string("L:") + std::to_string(laps)).c_str());
-  lv_label_set_text_fmt(labelDist, "%4.3f km",(laps*RACE_DISTANCE_LAP)/1000.0);
-  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",laps,RACE_LAPS);
-  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeLastShownUp.tm_mday-1)*24+timeLastShownUp.tm_hour,timeLastShownUp.tm_min,timeLastShownUp.tm_sec);
+  lv_label_set_text_fmt(labelDist, "%4.3f km",(participant.getLapCount()*RACE_DISTANCE_LAP)/1000.0);
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",participant.getLapCount(),RACE_LAPS);
+
+  struct tm timeinfo;
+  time_t tt = participant.getCurrentLapStart();
+  localtime_r(&tt, &timeinfo);
+  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
   //getTimeFormat("%d-%H:%M:%S",&timeLastShownUp).c_str()
 
   if (active)
   {
     //lv_obj_set_style_opa(labelConnectionStatus, 0, 0);
     if (connected) {
-      if (timeSinceLastSeen < 10) {
+      if (participant.getTimeSinceLastSeen() < 10) {
         lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_OPEN);
       }
       else {
@@ -351,14 +352,14 @@ uint32_t lastScanTime = 0;
 void startRaceiTags()
 {
   tm timeNow = rtc.getTimeStruct();
+  time_t raceStartTime = mktime (&timeNow); //TODO raceStartTime should be something "global"
+
   std::lock_guard<std::mutex> lck(mutexTags);
   for(int j=0; j<ITAG_COUNT; j++)
   {
-    iTags[j].timeLastSeen = timeNow;
-    iTags[j].timeLastShownUp = timeNow;
-    iTags[j].timeSinceLastSeen = 0;
-    iTags[j].laps = 0;
     iTags[j].updated = true;
+    iTags[j].participant.clearLaps();
+    iTags[j].participant.setCurrentLap(raceStartTime,0);
   }
   updateTagsNow = true;
 }
@@ -368,15 +369,17 @@ void updateiTagStatus()
   ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
   {
-    //double timeSinceLastSeen = MINIMUM_LAP_TIME_IN_SECONDS;
     std::lock_guard<std::mutex> lck(mutexTags);
     if (iTags[j].active && iTags[j].connected) {
+      // Check if "long time no see" and "disconnect"
       tm timeNow = rtc.getTimeStruct();
-      iTags[j].timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
+      time_t timeNowfromEpoc = mktime(&timeNow);
+      time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
+      uint32_t timeSinceLastSeen = difftime( timeNowfromEpoc, lastSeenSinceStart);
+      iTags[j].participant.setTimeSinceLastSeen(timeSinceLastSeen);
 
-      if (iTags[j].timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
-        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %f", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].timeSinceLastSeen);
-        //iTags[j].timeLastSeen = rtc.getTimeStruct();
+      if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen());
         iTags[j].connected = false;
       }
       iTags[j].updated = true;
@@ -387,7 +390,7 @@ void updateiTagStatus()
     }
 
     if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3d%s %d%% Laps: %5d | %s", iTags[j].timeSinceLastSeen,iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].laps , iTags[j].name.c_str());
+      ESP_LOGI(TAG,"Active: %3d %s %d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),iTags[j].connected? "#":" ", iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
     }
   }
   ESP_LOGI(TAG,"------------------------");
@@ -415,24 +418,29 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         NimBLEDevice::getScan()->stop();
 #else
         iTags[j].connected = true;
-        if (iTags[j].active) {
-          tm timeNow = rtc.getTimeStruct();
-          double timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
+        iTags[j].participant.setTimeSinceLastSeen(0);
+        tm timeNow = rtc.getTimeStruct();
+        time_t newLapTime = mktime(&timeNow);
+        time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
+        uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
 
-          if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
-            //ESP_LOGI(TAG,"%s Connected Time: %s delta %f NEW LAP", iTags[j].name.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
-            iTags[j].timeLastShownUp = timeNow;
-            iTags[j].laps++;
+        if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+          //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
+          if(!iTags[j].participant.nextLap(newLapTime)) {
+            //TODO GUI popup ??
+            ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
           }
-          else {
-            //ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", iTags[j].name.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
-          }
-          iTags[j].timeLastSeen = rtc.getTimeStruct();
-          iTags[j].timeSinceLastSeen = 0;
-          iTags[j].updated = true; // Make it redraw when GUI loop looks at it
         }
         else {
-          ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].name.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+          time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
+          //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
+          iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
+        }
+
+        iTags[j].updated = true; // Make it redraw when GUI loop looks at it
+
+        if (!iTags[j].active) {
+          ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
           // Set it up with iTags[j].connect() but we delay calling it until loop() loopHandlTAGs
           // Ready to connect now
           doConnect = j;
