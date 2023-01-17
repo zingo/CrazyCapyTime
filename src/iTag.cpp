@@ -35,58 +35,6 @@ static void buttonNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacterist
                                         uint8_t* pData, size_t length, bool isNotify) {
   ESP_LOGI(TAG,"Button PRESSED");
 }
-#ifndef HANDLE_LAP_ON_SCAN
-class ClientCallbacks : public NimBLEClientCallbacks
-{
-    void onConnect(NimBLEClient* pClient)
-    {
-      for(int j=0; j<ITAG_COUNT; j++)
-      {
-        std::lock_guard<std::mutex> lck(mutexTags);
-        if(pClient->getPeerAddress().toString() == iTags[j].address) {
-          // TODO add disconnect/reconnect detection with minimum time and stuff
-          iTags[j].connected = true;
-          if (iTags[j].active) {
-            tm timeNow = rtc.getTimeStruct();
-            uint32_t timeSinceLastSeen = difftime( mktime(&timeNow), mktime(&(iTags[j].timeLastSeen)));
-
-            if (timeSinceLastSeen>2*60) {
-              ESP_LOGI(TAG,"%s Connected Time: %s delta %f NEW LAP", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
-              iTags[j].timeLastShownUp = timeNow;
-              iTags[j].laps++;
-            }
-            else {
-              ESP_LOGI(TAG,"%s Connected Time: %s delta %f To early", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen);
-              iTags[j].timeLastSeen = rtc.getTimeStruct();
-              iTags[j].timeSinceLastSeen = 0;
-            }
-          }
-          else {
-            ESP_LOGI(TAG,"%s Connected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-          }
-          iTags[j].updateGUI_locked();
-        }
-      }
-    };
-
-    void onDisconnect(NimBLEClient* pClient)
-    {
-      for(int j=0; j<ITAG_COUNT; j++)
-      {
-        std::lock_guard<std::mutex> lck(mutexTags);
-        if(pClient->getPeerAddress().toString() == iTags[j].address) {
-          ESP_LOGI(TAG,"%s Disconnected Time: %s", pClient->getPeerAddress().toString().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-          iTags[j].connected = false;
-          if (iTags[j].active) {
-              iTags[j].timeLastSeen = rtc.getTimeStruct();
-              iTags[j].timeSinceLastSeen = 0;
-          }
-          iTags[j].updateGUI_locked();
-        }
-      }
-    };
-};
-#endif
 
 iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1)
 {
@@ -99,9 +47,6 @@ iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t
     participant.setName(inName);
     participant.clearLaps();
     updated = false;
-#ifndef HANDLE_LAP_ON_SCAN
-    pClient = NULL;
-#endif
 }
 
 bool iTag::updateBattery( NimBLEClient* client) {
@@ -185,36 +130,21 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
 {
   NimBLEClient* client;
 
-#ifndef HANDLE_LAP_ON_SCAN
-  {  // Just take a short lock to get pClient (and creat if not done before)
-    std::lock_guard<std::mutex> lck(mutexTags);
-    if(pClient == NULL) {
-      pClient = BLEDevice::createClient(appId++);
-      pClient->setClientCallbacks(new ClientCallbacks, false);
-      pClient->setConnectTimeout(10); // 10s
-    }
-    client = pClient;
-  }
-#else
       client = BLEDevice::createClient(appId++);
       client->setConnectTimeout(10); // 10s
-#endif
+
   BLEAddress bleAddress(address);
   if(!client->connect(advertisedDevice)) {
     // Created a client but failed to connect, don't need to keep it as it has no data */
     NimBLEDevice::deleteClient(client);
     ESP_LOGI(TAG,"Failed to connect, deleted client\n");
-#ifndef HANDLE_LAP_ON_SCAN
-    std::lock_guard<std::mutex> lck(mutexTags);
-    pClient = NULL;
-#endif
     return false;
   }
   ESP_LOGI(TAG,"Connected to: %s RSSI: %d\n",
           client->getPeerAddress().toString().c_str(),
           client->getRssi());
 
-#ifndef HANDLE_LAP_ON_SCAN
+#if 0
   // Button READ, NOTIFY
   static const BLEUUID buttonServiceUUID("0000ffe0-0000-1000-8000-00805f9b34fb");
   static const BLEUUID buttonCharacteristicUUID("0000ffe1-0000-1000-8000-00805f9b34fb");
@@ -252,9 +182,7 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
     updated = true; // will trigger GUI update later
   }
 
-#ifdef HANDLE_LAP_ON_SCAN
-  client->disconnect();
-#endif
+  client->disconnect(); // no need to stay connected
   return true;
 }
 
@@ -408,15 +336,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       std::lock_guard<std::mutex> lck(mutexTags);
       if(advertisedDevice->getAddress().toString() == iTags[j].address) {
         //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
-#ifndef HANDLE_LAP_ON_SCAN
-        // Set it up with iTags[j].connect() but we delay calling it until loop() loopHandlTAGs
-        // Ready to connect now
-        doConnect = j;
-        // Save the device reference in a global for the client to use
-        advDevice = advertisedDevice; // should match "j"
-        // stop scan before connecting
-        NimBLEDevice::getScan()->stop();
-#else
+
         iTags[j].connected = true;
         iTags[j].participant.setTimeSinceLastSeen(0);
         tm timeNow = rtc.getTimeStruct();
@@ -449,7 +369,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           // stop scan before connecting
           NimBLEDevice::getScan()->stop();
         }
-#endif
       }
     }
   }
