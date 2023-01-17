@@ -134,6 +134,17 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
       client = BLEDevice::createClient(appId++);
       client->setConnectTimeout(10); // 10s
 
+
+  {
+    std::lock_guard<std::mutex> lck(mutexTags);
+    // TODO clear lap data?
+    participant.setCurrentLap(0,0); // TODO set race start so a late tag get full race
+    participant.setTimeSinceLastSeen(0);
+    active = false;
+    updated = false; // will trigger GUI update later
+  }
+
+
   BLEAddress bleAddress(address);
   if(!client->connect(advertisedDevice)) {
     // Created a client but failed to connect, don't need to keep it as it has no data */
@@ -232,7 +243,7 @@ void iTag::updateGUI_locked(void)
       }
     }
     else {
-      lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
+      lv_label_set_text(labelConnectionStatus, "");
     }
   }
   else {
@@ -292,6 +303,8 @@ iTag iTags[ITAG_COUNT] = {
 static NimBLEAdvertisedDevice* advDevice;
 static int32_t doConnect = -1; // -1 = none else it shows index into iTags to connect
 uint32_t lastScanTime = 0;
+static uint32_t longestNonSeen = 0;
+
 
 void startRaceiTags()
 {
@@ -299,6 +312,7 @@ void startRaceiTags()
   time_t raceStartTime = mktime (&timeNow); //TODO raceStartTime should be something "global"
 
   std::lock_guard<std::mutex> lck(mutexTags);
+  longestNonSeen = 0;
   for(int j=0; j<ITAG_COUNT; j++)
   {
     iTags[j].updated = true;
@@ -321,6 +335,10 @@ void updateiTagStatus()
       time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
       uint32_t timeSinceLastSeen = difftime( timeNowfromEpoc, lastSeenSinceStart);
       iTags[j].participant.setTimeSinceLastSeen(timeSinceLastSeen);
+    if (longestNonSeen <  timeSinceLastSeen) {
+      longestNonSeen = timeSinceLastSeen;
+    }
+
 
       if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
         ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen());
@@ -334,7 +352,7 @@ void updateiTagStatus()
     }
 
     if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3d/%3d %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+      ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
     }
   }
   ESP_LOGI(TAG,"------------------------");
