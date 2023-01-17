@@ -13,13 +13,18 @@
 
 #define TAG "iTAG"
 
-#define SCAN_INTERVAL 2000 //How often should we update GUI
+#define SCAN_INTERVAL 1000 //How often should we update GUI
 #define BT_SCAN_TIME 5 // in seconds
 
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
 
 bool updateTagsNow = false;
+
+void refreshTagGUI()
+{
+  updateTagsNow = true;
+}
 
 std::string getTimeFormat(String format, struct tm *timeinfo)
 {
@@ -199,7 +204,7 @@ bool iTag::connect(NimBLEAdvertisedDevice* advertisedDevice)
   return true;
 }
 
-void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat)
+void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat)
 {
   std::lock_guard<std::mutex> lck(mutexTags);
   ledColor = ledCol;
@@ -208,7 +213,7 @@ void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * lab
   labelLaps = labelLap;
   labelTime = labelTim;
   labelConnectionStatus = labelConnStatus;
-  labelBatterySymbol = labelBatterySym;
+  //labelBatterySymbol = labelBatterySym;
   labelBattery = labelBat;
 }
 
@@ -255,17 +260,18 @@ void iTag::updateGUI_locked(void)
   if (raceOngoing)
   {
     if (connected && participant.getTimeSinceLastSeen() < 20) {
-      lv_label_set_text(labelBatterySymbol, LV_SYMBOL_WIFI);
+      //lv_label_set_text(labelBatterySymbol, LV_SYMBOL_WIFI);
       lv_label_set_text_fmt(labelBattery, "%d", getRSSI());
     }
     else {
-      lv_label_set_text(labelBatterySymbol, "");
+      //lv_label_set_text(labelBatterySymbol, "");
       lv_label_set_text(labelBattery, "");
 
     }
   }
   else {
     if (battery > 0) {  
+/*
       if (battery >= 90) {
         lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
       }
@@ -281,10 +287,11 @@ void iTag::updateGUI_locked(void)
       else {
         lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
       }
+*/
       lv_label_set_text_fmt(labelBattery, "%3d%%",battery);
     }
     else {
-      lv_label_set_text(labelBatterySymbol, "");
+//      lv_label_set_text(labelBatterySymbol, "");
       lv_label_set_text(labelBattery, "");
     }
   }
@@ -320,7 +327,7 @@ void startRaceiTags()
     iTags[j].participant.clearLaps();
     iTags[j].participant.setCurrentLap(raceStartTime,0);
   }
-  updateTagsNow = true;
+  refreshTagGUI();
 }
 
 void updateiTagStatus()
@@ -387,7 +394,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
           //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
-          if(!iTags[j].participant.nextLap(newLapTime)) {
+          if(!iTags[j].participant.nextLap()) {
             //TODO GUI popup ??
             ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
           }

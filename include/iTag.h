@@ -9,6 +9,13 @@
 class iTag;
 extern iTag iTags[ITAG_COUNT];
 
+
+void initiTAGs();
+void loopHandlTAGs();
+
+void startRaceiTags();
+void refreshTagGUI();
+
 // We will only connect the first time to config the tag, get battery info
 // and activate it for the race, then it will handle the lap counting and timeing on the
 // BT scanning this will probably avoid and speed up the time spend on detecting tag in the
@@ -42,14 +49,19 @@ class participantData {
     std::string getName() {return name;}
     void setName(std::string inName) {name = inName;}
     uint32_t getLapCount() {return laps;}
-    bool nextLap(time_t newLapTime) {
+    void prevLap() {if (laps>0) laps--; } //debug and correcting
+    bool nextLap() {
+      tm timeNow = rtc.getTimeStruct();
+      time_t newLapTime = mktime(&timeNow);
       if ((laps + 1) < (MAX_SAVED_LAPS-1)) {
         laps++;
         setCurrentLap(newLapTime, 0);
+        refreshTagGUI();
         return true;
       }
       //MAX LAP ERROR - Just make last lap extra long
       setCurrentLastSeen(newLapTime-getCurrentLapStart());
+      refreshTagGUI();
       return false;  
     }
 
@@ -95,7 +107,7 @@ class iTag {
     iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
     bool connect(NimBLEAdvertisedDevice* advertisedDevice);
 
-    void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, lv_obj_t * labelBatterySym, lv_obj_t * labelBat);
+    void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
     void updateGUI(void);
     void updateGUI_locked(void);
     int getRSSI() {return RSSI;}
@@ -113,11 +125,8 @@ class iTag {
     lv_obj_t * labelLaps;
     lv_obj_t * labelTime;
     lv_obj_t * labelConnectionStatus;
-    lv_obj_t * labelBatterySymbol;
+    //lv_obj_t * labelBatterySymbol;
     lv_obj_t * labelBattery;
 };
 
-void initiTAGs();
-void loopHandlTAGs();
 
-void startRaceiTags();

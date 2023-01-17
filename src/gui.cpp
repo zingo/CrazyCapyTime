@@ -90,8 +90,8 @@ static void btnTime_event_cb(lv_event_t * e)
     if(code == LV_EVENT_SHORT_CLICKED) {
         if (!raceOngoing)
         {
-          lv_obj_t * label = lv_obj_get_child(btn, 0);
-          lv_label_set_text_fmt(label, "Race Starts soon");
+          //lv_obj_t * label = lv_obj_get_child(btn, 0);
+          //lv_label_set_text_fmt(label, "Race Starts soon");
           startRace();
         }
     }
@@ -121,61 +121,106 @@ static void btnSave_event_cb(lv_event_t * e)
     }
 }
 
+static void btnTagAdd_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
+      tag->participant.nextLap();
+    }
+}
+
+static void btnTagSub_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
+      tag->participant.prevLap();
+    }
+}
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
   // index is index into iTag database
-    lv_obj_t * panel1 = lv_obj_create(parent);
-    lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
+  lv_obj_t * panel1 = lv_obj_create(parent);
+  lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
 
-    static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 30, 40, LV_GRID_TEMPLATE_LAST};
-    static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
 
-    int x_pos = 0;
+  int x_pos = 0;
 
-    lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
-    lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
+  lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
 
-    lv_obj_t * ledColor  = lv_led_create(panel1);
-    lv_led_set_brightness(ledColor, 150);
-    lv_led_set_color(ledColor, lv_palette_main(LV_PALETTE_GREY));
-    lv_obj_set_grid_cell(ledColor, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * ledColor  = lv_led_create(panel1);
+  lv_led_set_brightness(ledColor, 150);
+  lv_led_set_color(ledColor, lv_palette_main(LV_PALETTE_GREY));
+  lv_obj_set_grid_cell(ledColor, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelName = lv_label_create(panel1);
-    lv_label_set_text(labelName, "");
-    lv_obj_add_style(labelName, &styleTagText, 0);
-    lv_label_set_long_mode(labelName, LV_LABEL_LONG_CLIP);
-    lv_obj_set_grid_cell(labelName, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelName = lv_label_create(panel1);
+  lv_label_set_text(labelName, "");
+  lv_obj_add_style(labelName, &styleTagText, 0);
+  lv_label_set_long_mode(labelName, LV_LABEL_LONG_CLIP);
+  lv_obj_set_grid_cell(labelName, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelDist = lv_label_create(panel1);
-    lv_obj_add_style(labelDist, &styleTagText, 0);
-    lv_label_set_text(labelDist, "00.000");
-    lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelDist = lv_label_create(panel1);
+  lv_obj_add_style(labelDist, &styleTagText, 0);
+  lv_label_set_text(labelDist, "00.000");
+  lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelLaps = lv_label_create(panel1);
-    lv_label_set_text(labelLaps, "Laps");
-    lv_obj_add_style(labelLaps, &styleTagText, 0);
-    lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelLaps = lv_label_create(panel1);
+  lv_label_set_text(labelLaps, "Laps");
+  lv_obj_add_style(labelLaps, &styleTagText, 0);
+  lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelTime = lv_label_create(panel1);
-    lv_obj_add_style(labelTime, &styleTagText, 0);
-    lv_label_set_text(labelTime, "00:00:00");
-    lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelTime = lv_label_create(panel1);
+  lv_obj_add_style(labelTime, &styleTagText, 0);
+  lv_label_set_text(labelTime, "00:00:00");
+  lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
-    lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
-    lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
-    lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
+  lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
+  lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
+  lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+/*
+  lv_obj_t * labelBatterySymbol = lv_label_create(panel1);
+  lv_obj_add_style(labelBatterySymbol, &styleIcon, 0);
+  lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+  lv_obj_set_grid_cell(labelBatterySymbol, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+*/
 
-    lv_obj_t * labelBatterySymbol = lv_label_create(panel1);
-    lv_obj_add_style(labelBatterySymbol, &styleIcon, 0);
-    lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
-    lv_obj_set_grid_cell(labelBatterySymbol, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * labelBattery = lv_label_create(panel1);
+  lv_label_set_text(labelBattery, "");
+  lv_obj_add_style(labelBattery, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(labelBattery, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    lv_obj_t * labelBattery = lv_label_create(panel1);
-    lv_label_set_text(labelBattery, "");
-    lv_obj_add_style(labelBattery, &styleTagSmallText, 0);
-    lv_obj_set_grid_cell(labelBattery, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * btn;
+  lv_obj_t *label;
+  btn = lv_btn_create(panel1); 
+  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, &iTags[index]);
+
+  label = lv_label_create(btn);          /*Add a label to the button*/
+  lv_label_set_text(label, "-");                     /*Set the labels text*/
+  lv_obj_center(label);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+
+  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  btn = lv_btn_create(panel1); 
+  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, &iTags[index]);
+
+  label = lv_label_create(btn);          /*Add a label to the button*/
+  lv_label_set_text(label, "+");                     /*Set the labels text*/
+  lv_obj_center(label);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+
+  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
 
     //lv_obj_t * log_out_btn = lv_btn_create(panel1);
     //lv_obj_set_height(log_out_btn, LV_SIZE_CONTENT);
@@ -184,7 +229,7 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
     //lv_obj_center(label);
     //lv_obj_set_grid_cell(log_out_btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    iTags[index].saveGUIObjects(ledColor, labelName, labelDist, labelLaps, labelTime, labelConnectionStatus, labelBatterySymbol, labelBattery);
+    iTags[index].saveGUIObjects(ledColor, labelName, labelDist, labelLaps, labelTime, labelConnectionStatus, /* labelBatterySymbol,*/ labelBattery);
     iTags[index].updateGUI();
 }
 
@@ -192,9 +237,9 @@ static void createGUITabRace(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
 
-  for(int j=0; j<ITAG_COUNT; j++)
+  for(int i=0; i<ITAG_COUNT; i++)
   {
-    createGUIRunnerTag(parent, j);
+    createGUIRunnerTag(parent, i);
   }
 
   lv_obj_t * btnSave = lv_btn_create(parent); 
