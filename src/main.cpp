@@ -21,10 +21,11 @@
  */
 
 #include <ESP32Time.h>
+#include "FS.h"
+#include <LittleFS.h>
 #include "common.h"
 #include "gui.h"
 #include "iTag.h"
-
 #define TAG "Main"
 
 //ESP32Time rtc(3600);  // offset in seconds GMT+1
@@ -38,7 +39,15 @@ void startRace()
   rtc.setTime(0,0);
   startRaceiTags();
   raceOngoing = true;
+}
 
+void initLittleFS() 
+{
+  if (!LittleFS.begin(true)) { // true = formatOnFail
+    ESP_LOGE(TAG, "ERROR: Cannot start LittleFS");
+    return;
+  }
+  ESP_LOGI(TAG, "LittleFS started");
 }
 
 void setup()
@@ -50,6 +59,7 @@ void setup()
 
   initLVGL();
   initiTAGs();
+  initLittleFS();
   ESP_LOGI(TAG, "Setup done switching to running loop");
 
 }

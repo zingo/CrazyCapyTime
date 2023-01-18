@@ -79,6 +79,7 @@ static lv_style_t styleBullet;
 static lv_obj_t *labelRaceTime;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
+static const lv_font_t * fontTag = LV_FONT_DEFAULT;
 static const lv_font_t * fontLarge = LV_FONT_DEFAULT;
 static const lv_font_t * fontLargest = LV_FONT_DEFAULT;
 static const lv_font_t * fontTime = LV_FONT_DEFAULT;
@@ -121,6 +122,15 @@ static void btnSave_event_cb(lv_event_t * e)
     }
 }
 
+static void btnLoad_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      loadRace();
+    }
+}
+
 static void btnTagAdd_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -146,6 +156,8 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   // index is index into iTag database
   lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(panel1, 13,0); 
+
 
   static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
@@ -236,14 +248,48 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 static void createGUITabRace(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,5,0);
+  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_all(parent, 5,0); 
+
 
   for(int i=0; i<ITAG_COUNT; i++)
   {
     createGUIRunnerTag(parent, i);
   }
 
+  lv_obj_t * chart;
+  chart = lv_chart_create(parent);
+  lv_obj_align_to(chart, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+  lv_obj_set_size(chart, LV_PCT(100), 150);
+  lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER);
+    
+  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 60*60, 10*60, 8, 6, true, 20);
+  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 3, 3, 8, 1, true, 20);
+
+  lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_X, 0, 60*60*9);
+  lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 8);
+
+  lv_chart_set_point_count(chart, (DRAW_MAX_LAPS_IN_CHART*2*ITAG_COUNT));
+
+
+  for(int i=0; i<ITAG_COUNT; i++)
+  {
+    lv_chart_series_t * series = lv_chart_add_series(chart, lv_color_hex(iTags[i].color0), LV_CHART_AXIS_PRIMARY_Y);
+    iTags[i].participant.saveGUIObjects(chart, series);
+  }
+
+  lv_obj_t * btnLoad = lv_btn_create(parent); 
+  //lv_obj_align_to(btnLoad, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+  lv_obj_add_event_cb(btnLoad, btnLoad_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *labelLoad = lv_label_create(btnLoad);          /*Add a label to the button*/
+  lv_label_set_text(labelLoad, "Load");                     /*Set the labels text*/
+  lv_obj_center(labelLoad);
+  lv_obj_add_style(labelLoad, &styleTime, 0);
+
   lv_obj_t * btnSave = lv_btn_create(parent); 
-  lv_obj_align_to(btnSave, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  //lv_obj_align_to(btnSave, labelLoad, LV_ALIGN_TOP_RIGHT, 0, 0);
   //lv_obj_set_pos(btnSave, 10, 10);                            /*Set its position*/
   //lv_obj_set_size(btnSave, 120, 50);                          /*Set its size*/
   lv_obj_add_event_cb(btnSave, btnSave_event_cb, LV_EVENT_ALL, NULL);
@@ -261,9 +307,9 @@ void createGUI(void)
 
   fontNormal  = &lv_font_montserrat_16;
   fontLarge   = &lv_font_montserrat_24;
+  fontTag     = &lv_font_montserrat_28;
   fontLargest = &lv_font_montserrat_36;
   fontTime    = &lv_font_montserrat_42;
-
 
 #if LV_USE_THEME_DEFAULT
   lv_theme_default_init(NULL, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), LV_THEME_DEFAULT_DARK, fontNormal);
@@ -279,11 +325,10 @@ void createGUI(void)
   lv_style_set_text_font(&styleLargeText, fontLargest);
 
   lv_style_init(&styleTagText);
-  lv_style_set_text_font(&styleTagText, fontLarge);
+  lv_style_set_text_font(&styleTagText, fontTag);
 
   lv_style_init(&styleTagSmallText);
   lv_style_set_text_font(&styleTagSmallText, fontNormal);
-
 
   lv_style_init(&styleTime);
   lv_style_set_text_font(&styleTime, fontTime);
@@ -296,7 +341,6 @@ void createGUI(void)
   lv_style_set_text_color(&styleIconOff, lv_theme_get_color_primary(NULL));
   lv_style_set_text_opa(&styleIconOff, LV_OPA_50);
   lv_style_set_text_font(&styleIconOff, fontLarge);
-
 
   lv_style_init(&styleBullet);
   lv_style_set_border_width(&styleBullet, 0);

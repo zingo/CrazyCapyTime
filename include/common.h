@@ -13,10 +13,13 @@ extern ESP32Time rtc;
 //#define RACE_DISTANCE_LAP (400)
 #define RACE_LAPS 7
 
+#define DRAW_MAX_LAPS_IN_CHART (RACE_LAPS+10) //10 extra to allow some extra laps in case of errors or wrong config
+
 // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
 #define MINIMUM_LAP_TIME_IN_SECONDS ((170*RACE_DISTANCE_LAP)/1000)
 
 extern bool raceOngoing;
 
 void startRace();
+void loadRace();
 void saveRace();

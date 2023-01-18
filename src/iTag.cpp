@@ -8,6 +8,7 @@
 #include <mutex>
 #include <NimBLEDevice.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 #include "common.h"
 #include "iTag.h"
 
@@ -306,7 +307,7 @@ void iTag::updateGUI_locked(void)
 iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:7e:be:67", "Zingo",   ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //Orange
   iTag("ff:ff:10:7d:d2:08", "Stefan",  ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE), //Dark blue
-  iTag("ff:ff:10:82:ef:1e", "Johan(na)?", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
+  iTag("ff:ff:10:82:ef:1e", "Johan-na", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
 };
 static NimBLEAdvertisedDevice* advDevice;
 static int32_t doConnect = -1; // -1 = none else it shows index into iTags to connect
@@ -357,6 +358,7 @@ void updateiTagStatus()
     if (iTags[j].updated) {
       iTags[j].updated = false;
       iTags[j].updateGUI_locked(); //TODO don't update all, only what is needed
+      iTags[j].participant.updateChart();
     }
 
     if(iTags[j].active) {
@@ -431,6 +433,93 @@ void scanBTCompleteCB(NimBLEScanResults scanResults)
   }
 }
 
+void printDirectory(File dir, int numTabs) {
+  while (true) {
+ 
+    File entry =  dir.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+//    for (uint8_t i = 0; i < numTabs; i++) {
+//      Serial.print('\t');
+//    }
+    if (entry.isDirectory()) {
+      ESP_LOGI(TAG,"  %s/",entry.name());
+      printDirectory(entry, numTabs + 1);
+    } else {
+      ESP_LOGI(TAG,"  %s %d",entry.name(),entry.size());
+      // files have sizes, directories do not
+    }
+    entry.close();
+  }
+}
+
+void loadRace()
+{
+  {
+    unsigned int totalBytes = LittleFS.totalBytes();
+    unsigned int usedBytes = LittleFS.usedBytes();
+    unsigned int freeBytes  = totalBytes - freeBytes;
+ 
+    ESP_LOGI(TAG,"File sistem info: ----------- LOAD"); 
+    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
+    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
+    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
+ 
+    // Open dir folder
+    File dir = LittleFS.open("/");
+    // Cycle all the content
+    printDirectory(dir,0);
+    dir.close();
+  }
+
+  File raceFile = LittleFS.open("/RaceData.json", "r");
+  if (!raceFile) {
+    ESP_LOGE(TAG,"ERROR: LittleFS open(/RaceData.json,r) failed");
+    return;
+  }
+
+  DynamicJsonDocument raceJson(50000);
+  DeserializationError err = deserializeJson(raceJson, raceFile);
+  raceFile.close();
+  if (err) {
+    ESP_LOGE(TAG,"ERROR: deserializeJson() failed with code %s",err.f_str());
+    return;
+  }
+  
+
+  String output = "";
+  serializeJsonPretty(raceJson, output);
+  ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
+
+
+  JsonArray tagArrayJson = raceJson.createNestedArray("tag");
+  for(int i=0; i<ITAG_COUNT; i++)
+  {
+    //JsonObject tagJson = raceJson.createNestedObject("tag");
+    JsonObject tagJson = tagArrayJson.createNestedObject();
+    tagJson["address"] = iTags[i].address;
+    tagJson["color0"] = iTags[i].color0;
+    tagJson["color1"] = iTags[i].color1;
+    tagJson["active"] = iTags[i].active;
+    JsonObject participantJson = tagJson.createNestedObject("participant"); 
+    participantJson["name"] = iTags[i].participant.getName();
+    participantJson["laps"] = iTags[i].participant.getLapCount();
+    participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
+
+    JsonArray lapArrayJson = tagJson.createNestedArray("lap");
+    for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
+    {
+      JsonObject lapJson = lapArrayJson.createNestedObject(); 
+      lapJson["StartTime"] = iTags[i].participant.getLap(lap).getLapStart();
+      lapJson["LastSeen"] = iTags[i].participant.getLap(lap).getLastSeen();
+    }
+  }
+
+
+}
+
 void saveRace()
 {
   DynamicJsonDocument raceJson(50000);
@@ -475,6 +564,49 @@ void saveRace()
   String output = "";
   serializeJsonPretty(raceJson, output);
   ESP_LOGI(TAG,"json: \n%s", output.c_str());
+
+
+  {
+    unsigned int totalBytes = LittleFS.totalBytes();
+    unsigned int usedBytes = LittleFS.usedBytes();
+    unsigned int freeBytes  = totalBytes - freeBytes;
+ 
+    ESP_LOGI(TAG,"File sistem info: ----------- PRE SAVE"); 
+    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
+    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
+    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
+ 
+    // Open dir folder
+    File dir = LittleFS.open("/");
+    // Cycle all the content
+    printDirectory(dir,0);
+    dir.close();
+  }
+
+  File raceFile = LittleFS.open("/RaceData.json", "w");
+  if (!raceFile) {
+    ESP_LOGE(TAG,"ERROR: LittleFS open(/RaceData.json,w) failed");
+    return;
+  }
+  serializeJson(raceJson, raceFile);
+  raceFile.close();
+
+    {
+    unsigned int totalBytes = LittleFS.totalBytes();
+    unsigned int usedBytes = LittleFS.usedBytes();
+    unsigned int freeBytes  = totalBytes - freeBytes;
+ 
+    ESP_LOGI(TAG,"File sistem info: ----------- SAVED"); 
+    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
+    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
+    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
+ 
+    // Open dir folder
+    File dir = LittleFS.open("/");
+    // Cycle all the content
+    printDirectory(dir,0);
+    dir.close();
+  }
 }
 
 

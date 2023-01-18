@@ -82,12 +82,40 @@ class participantData {
 
     uint32_t getTimeSinceLastSeen() {return timeSinceLastSeen;}
     void setTimeSinceLastSeen(time_t inTime) {timeSinceLastSeen=inTime;}
+    void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
+      lapsChart = chart;
+      lapsSeries = series;
+      updateChart();
+    }
+    void updateChart()
+    {
+      for(int lap=0;lap<=DRAW_MAX_LAPS_IN_CHART;lap++)
+      {
+        if (lap<=laps) {
+          lapData theLap = getLap(lap);
+          //two "dots" per lap, lap start and "last seen" e.g. left aidstation
+          lapsSeries->x_points[2*lap] = theLap.getLapStart();
+          lapsSeries->y_points[2*lap] = lap;
+          lapsSeries->x_points[2*lap+1] = theLap.getLapStart() + theLap.getLastSeen() ;
+          lapsSeries->y_points[2*lap+1] = lap;
+        }
+        else {
+          lapsSeries->x_points[2*lap] = LV_CHART_POINT_NONE;
+          lapsSeries->y_points[2*lap] = LV_CHART_POINT_NONE;
+          lapsSeries->x_points[2*lap+1] = LV_CHART_POINT_NONE;
+          lapsSeries->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+        }
+      }
+      lv_chart_refresh(lapsChart); /*Required after direct set*/
+    }  
   private:
     std::string name;     // Participant name
     uint32_t laps;
     uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
     std::vector<lapData> lapsData;
-
+    //GUI stuff
+    lv_obj_t * lapsChart;
+    lv_chart_series_t * lapsSeries;
 //TODO?    bool updated; // if true update GUI
  
 };
