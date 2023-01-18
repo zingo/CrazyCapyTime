@@ -263,11 +263,14 @@ static void createGUITabRace(lv_obj_t * parent)
   lv_obj_t * chart;
   chart = lv_chart_create(parent);
   lv_obj_align_to(chart, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  lv_obj_set_size(chart, LV_PCT(100), 150);
+  lv_obj_set_size(chart, LV_PCT(100), 180);
   lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER);
-    
-  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 60*60, 10*60, 8, 6, true, 20);
-  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 3, 3, 8, 1, true, 20);
+  
+  const uint32_t ydiv_num = 8;
+  const uint32_t xdiv_num = 9;
+  lv_chart_set_div_line_count(chart, 9, 10);
+//  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
+//  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
 
   lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_X, 0, 60*60*9);
   lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 8);
