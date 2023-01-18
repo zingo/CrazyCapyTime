@@ -31,13 +31,22 @@
 //ESP32Time rtc(3600);  // offset in seconds GMT+1
 ESP32Time rtc(0);  // use epoc as race start TODO use real RCT time from HW or NTP
 
+uint32_t raceStartIn = 0;
 bool raceOngoing = false;
+
+void startRaceCountdown()
+{
+  rtc.setTime(0,0);  // TODO remove, for now EPOCH is sued for the countdown as RACE_COUNTDOWN-EPOCH
+  startRaceiTags();
+  raceStartIn = RACE_COUNTDOWN; //seconds
+  raceOngoing = false;
+}
 
 void startRace()
 {
-  // TODO Add count down until start 10,9,8,...,0 START!
   rtc.setTime(0,0);
   startRaceiTags();
+  raceStartIn = 0;
   raceOngoing = true;
 }
 
@@ -52,6 +61,7 @@ void initLittleFS()
 
 void setup()
 {
+  raceStartIn = 0;
   raceOngoing = false;
   //delay(1000);
   Serial.begin(115200);
@@ -66,6 +76,20 @@ void setup()
 
 void loop()
 {
+  if(raceStartIn > 0) {
+    int newRaceStartIn = RACE_COUNTDOWN - rtc.getEpoch();
+    if(newRaceStartIn<=0) {
+      //Countdown 0
+      raceStartIn = 0;
+      startRace();
+    }
+     else {
+      raceStartIn = newRaceStartIn;
+    }
+  }
+  
+
+
   //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
   loopHandlLVGL();
   loopHandlTAGs();

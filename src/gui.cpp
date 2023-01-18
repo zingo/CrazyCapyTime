@@ -93,7 +93,7 @@ static void btnTime_event_cb(lv_event_t * e)
         {
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
-          startRace();
+          startRaceCountdown();
         }
     }
 
@@ -101,11 +101,13 @@ static void btnTime_event_cb(lv_event_t * e)
     // could be used to override race restart protection
     if(code == LV_EVENT_LONG_PRESSED) {
       if (raceOngoing) {
+        raceStartIn = 0;
         raceOngoing = false;
         lv_obj_t * label = lv_obj_get_child(btn, 0);
         lv_label_set_text_fmt(label, "Start!");
       }
       else {
+        raceStartIn = 0;
         raceOngoing = true;
         lv_obj_t * label = lv_obj_get_child(btn, 0);
         lv_label_set_text_fmt(label, "Race continued!");
@@ -436,6 +438,9 @@ void updateGUITime()
 {
   if (raceOngoing) {
     lv_label_set_text(labelRaceTime, rtc.getTime("%H:%M:%S").c_str());
+  }
+  else if(raceStartIn) {
+    lv_label_set_text_fmt(labelRaceTime, ">>  %d  <<", raceStartIn);
   }
 }
 

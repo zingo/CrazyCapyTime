@@ -658,5 +658,6 @@ void loopHandlTAGs()
     lastScanTime = now;
     updateiTagStatus();
     //saveRace();
+    //rtc.setTime(rtc.getEpoch()+30,0); //fake faster time REMOVE
   }
 }
