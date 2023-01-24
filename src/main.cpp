@@ -87,8 +87,6 @@ void loop()
       raceStartIn = newRaceStartIn;
     }
   }
-  
-
 
   //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
   loopHandlLVGL();

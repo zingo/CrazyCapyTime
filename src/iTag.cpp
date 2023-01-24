@@ -13,8 +13,6 @@
 #include "iTag.h"
 
 #define TAG "iTAG"
-
-#define SCAN_INTERVAL 1000 //How often should we update GUI
 #define BT_SCAN_TIME 5 // in seconds
 
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
@@ -181,7 +179,7 @@ void startRaceiTags()
 
 void updateiTagStatus()
 {
-  ESP_LOGI(TAG,"----- Active tags: -----");
+//  ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
   {
     std::lock_guard<std::mutex> lck(mutexTags);
@@ -209,11 +207,11 @@ void updateiTagStatus()
       iTags[j].participant.updateChart();
     }
 
-    if(iTags[j].active) {
-      ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
-    }
+   // if(iTags[j].active) {
+   //   ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+   // }
   }
-  ESP_LOGI(TAG,"------------------------");
+//  ESP_LOGI(TAG,"------------------------");
 }
 
 
@@ -647,6 +645,7 @@ void vTaskBTConnect( void *pvParameters )
 
   for( ;; )
   {
+    ESP_LOGI(TAG,"Wait for BT Connect");
     uint64_t bleAddress64;
     if( xQueueReceive(queueBTConnect, &(bleAddress64), (TickType_t)portMAX_DELAY))
     {
@@ -701,7 +700,7 @@ void loopHandlTAGs()
     lastScanTime = now;
     updateiTagStatus();
   }
-  else if (now - lastScanTime > SCAN_INTERVAL) { 
+  else if (now - lastScanTime > 2000) { 
     updateTagsNow = false;
     lastScanTime = now;
     updateiTagStatus();

@@ -499,7 +499,12 @@ void initLVGL()
 
 void loopHandlLVGL()
 {
-  updateGUITime();
+  static unsigned long lastTimeUpdate = 356*24*60*60; //start on something we will never match like 1971
+  unsigned long now = rtc.getEpoch();
+  if (lastTimeUpdate != now) {
+    lastTimeUpdate = now;
+    updateGUITime();
+  }
   lv_timer_handler();
 }
 
