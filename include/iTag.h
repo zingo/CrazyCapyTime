@@ -133,7 +133,7 @@ class iTag {
     participantData participant;
     bool updated;
     iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
-    bool connect(NimBLEAdvertisedDevice* advertisedDevice);
+    void reset();
 
     void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
     void updateGUI(void);
@@ -142,9 +142,6 @@ class iTag {
     void setRSSI(int val) {RSSI=val;}
   private:
     int RSSI;
-    bool updateBattery(NimBLEClient* client);
-    bool toggleBeep(NimBLEClient* client, bool beep);
-    bool toggleBeepOnLost(NimBLEClient* client, bool beep);
 
     // GUI LVGL object used when updating
     lv_obj_t * ledColor;
