@@ -24,8 +24,10 @@
 #include "FS.h"
 #include <LittleFS.h>
 #include "common.h"
+#include "messages.h"
 #include "gui.h"
 #include "iTag.h"
+#include "bluetooth.h"
 #define TAG "Main"
 
 //ESP32Time rtc(3600);  // offset in seconds GMT+1
@@ -33,6 +35,27 @@ ESP32Time rtc(0);  // use epoc as race start TODO use real RCT time from HW or N
 
 uint32_t raceStartIn = 0;
 bool raceOngoing = false;
+
+
+QueueHandle_t queueiTagDetected;
+QueueHandle_t queueBTConnect;
+
+void initMessageQueues()
+{
+  // Well we have a lot of memory, so why not allow it, e.g. ITAG_COUNT  :)
+  queueiTagDetected = xQueueCreate(ITAG_COUNT, sizeof(msg_iTagDetected));  // ITAG_COUNT x msg_iTagDetected 
+  if (queueiTagDetected == 0){
+    ESP_LOGE(TAG,"Failed to create queueiTagDetected = %p\n", queueiTagDetected);
+    // TODO Something more clever here?
+  }
+
+  // lets just make the queue big enough for all (it should work to make it smaller)
+  queueBTConnect = xQueueCreate(ITAG_COUNT, sizeof(msg_iTagDetected));  // ITAG_COUNT x msg_iTagDetected
+  if (queueBTConnect == 0){
+    ESP_LOGE(TAG,"Failed to create queueBTConnect = %p\n", queueBTConnect);
+    // TODO Something more clever here?
+  }
+}
 
 void startRaceCountdown()
 {
@@ -67,7 +90,9 @@ void setup()
   Serial.begin(115200);
   ESP_LOGI(TAG, "Crazy Capy Time setup");
 
+  initMessageQueues(); // Must be called before starting all tasks as theu might use the messages queues
   initLVGL();
+  initBluetooth();
   initiTAGs();
   initLittleFS();
   ESP_LOGI(TAG, "Setup done switching to running loop");
