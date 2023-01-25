@@ -15,12 +15,12 @@
 #define TAG "iTAG"
 #define BT_SCAN_TIME 5 // in seconds
 
+QueueHandle_t queueiTagDetected;
+
 std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 static uint16_t appId = 3;
 
 bool updateTagsNow = false;
-
-static bool doBTConnect(uint32_t tagIndex);
 
 void refreshTagGUI()
 {
@@ -401,7 +401,7 @@ static void BTiTagButtonPressed(BLERemoteCharacteristic* pBLERemoteCharacteristi
 
 #endif
 
-bool BTupdateBattery( NimBLEClient* client) {
+bool BTupdateBattery( NimBLEClient* client, msg_iTagDetected &msg_iTag) {
     // Battery READ, NOTIFY
     static const BLEUUID batteryServiceUUID("0000180f-0000-1000-8000-00805f9b34fb");
     static const BLEUUID batteryCharacteristicUUID("00002a19-0000-1000-8000-00805f9b34fb");
@@ -412,11 +412,10 @@ bool BTupdateBattery( NimBLEClient* client) {
       if (remoteCharacteristic) {
         // Read the value of the characteristic.
         if(remoteCharacteristic->canRead()) {
-          uint32_t bat = remoteCharacteristic->readUInt8();
+          int8_t bat = remoteCharacteristic->readUInt8();
           ESP_LOGI(TAG,"Read battery value: 0x%x %d",bat,bat);
 
-          //std::lock_guard<std::mutex> lck(mutexTags);
-          //TODO iTags[tagIndex].battery = bat;
+          msg_iTag.battery = bat;
         }
   //          if(remoteCharacteristic->canNotify()) {
   //            remoteCharacteristic->registerForNotify(batteryNotifyCallback);
@@ -479,9 +478,11 @@ bool BTtoggleBeepOnLost(NimBLEClient* client, bool beep) {
 }
 
 
-bool BTconnect(NimBLEAddress &bleAddress)
+bool BTconnect(msg_iTagDetected &msg_iTag)
 {
   NimBLEClient* client;
+  NimBLEAddress bleAddress(msg_iTag.address);
+  ESP_LOGI(TAG,"BT Connect %s", bleAddress.toString().c_str());
 
   client = BLEDevice::createClient(appId++);
   client->setConnectTimeout(10); // 10s
@@ -520,7 +521,7 @@ bool BTconnect(NimBLEAddress &bleAddress)
   }
 #endif
   BTtoggleBeepOnLost(client, false);
-  BTupdateBattery(client);
+  BTupdateBattery(client,msg_iTag);
 
   //BTtoggleBeep(client, true);  // Welcome/setup beep
   //delay(200);
@@ -549,50 +550,29 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
   {
     //ESP_LOGI(TAG,"Scaning iTAGs Found: %s",String(advertisedDevice->toString().c_str()).c_str());
 
-    for(int j=0; j<ITAG_COUNT; j++)
-    {
-      std::lock_guard<std::mutex> lck(mutexTags);  // TODO maybe just send a queue msg to a database/iTag task and handle all stuff there and remove this lock
-      if(advertisedDevice->getAddress().toString() == iTags[j].address) {
-        //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
-        //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-
-        iTags[j].connected = true;
-        iTags[j].participant.setTimeSinceLastSeen(0);
-        if (advertisedDevice->haveRSSI()) {
-          iTags[j].setRSSI(advertisedDevice->getRSSI());
-        }
-        else {
-          iTags[j].setRSSI(-9999);
-        }
-        tm timeNow = rtc.getTimeStruct();
-        time_t newLapTime = mktime(&timeNow);
-        time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
-        uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
-
-        if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
-          //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
-          if(!iTags[j].participant.nextLap()) {
-            //TODO GUI popup ??
-            ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
-          }
-        }
-        else {
-          time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
-          //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
-          iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
-        }
-
-        iTags[j].updated = true; // Make it redraw when GUI loop looks at it
-
-        if (!iTags[j].active) {
-          ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());          
-          doBTScan = false; // will be set to true when queue is handled
-          if (doBTConnect(j))
-          {
-            //Only mark active if it was possible to put in on the queue, if not it will just retry next time we scan the tag
-            iTags[j].active = true;
-            //iTags[j].reset(); // will set active = true
-          }
+    size_t isiTag = advertisedDevice->getName().find("iTAG");
+    if (isiTag != std::string::npos && isiTag == 0) {
+      //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
+      msg_iTagDetected msg;
+      msg.msgType = MSG_ITAG_DETECTED;
+      msg.time = rtc.getEpoch();
+      msg.address = static_cast<uint64_t>(advertisedDevice->getAddress());
+      if (advertisedDevice->haveRSSI()) {
+        msg.RSSI = advertisedDevice->getRSSI();
+      }
+      else {
+        msg.RSSI = INT8_MIN;
+      }
+      msg.battery = INT8_MIN;
+      BaseType_t xReturned = xQueueSend(queueiTagDetected, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
+      if (!xReturned)
+      {
+        ESP_LOGE(TAG,"ERROR iTAG detected queue is full: %s RETRY for 1s",String(advertisedDevice->toString().c_str()).c_str());
+        xReturned = xQueueSend(queueiTagDetected, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
+        if (!xReturned)
+        {
+          ESP_LOGE(TAG,"ERROR ERROR iTAG detected queue is still full: %s trow a way detected",String(advertisedDevice->toString().c_str()).c_str());
+          //TODO do something clever ??? Collect how many?
         }
       }
     }
@@ -600,14 +580,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 };
 
 QueueHandle_t queueBTConnect;
-
-static bool doBTConnect(uint32_t tagIndex)
-{
-  NimBLEAddress bleAddress(iTags[tagIndex].address);
-  uint64_t bleAddress64 = static_cast<uint64_t>(bleAddress);
-  BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&bleAddress64, (TickType_t)0); //Don't wait if queue is full, just retry next time we scan the tag
-  return xReturned;
-}
 
 void vTaskBTConnect( void *pvParameters )
 {
@@ -619,13 +591,6 @@ void vTaskBTConnect( void *pvParameters )
   BLEScan* pBLEScan;
   ESP_LOGI(TAG,"BLEDevice init");
   NimBLEDevice::init("");
-
-  // 64bit per tag lets just make the queue big enough for all (it should work to make it smaller)
-  queueBTConnect = xQueueCreate(ITAG_COUNT, sizeof(uint64_t));  // ITAG_COUNT x NimBLEAddress e.g. static_cast<uint64_t>(NimBLEAddress) 
-  if (queueBTConnect == 0){
-    ESP_LOGE(TAG,"Failed to create queueBTConnect = %p\n", queueBTConnect);
-    // TODO Something more clever here?
-  }
 
   pBLEScan = NimBLEDevice::getScan();
 
@@ -646,23 +611,153 @@ void vTaskBTConnect( void *pvParameters )
   for( ;; )
   {
     ESP_LOGI(TAG,"Wait for BT Connect");
-    uint64_t bleAddress64;
-    if( xQueueReceive(queueBTConnect, &(bleAddress64), (TickType_t)portMAX_DELAY))
+    msg_iTagDetected msg_iTag;
+    if( xQueueReceive(queueBTConnect, &(msg_iTag), (TickType_t)portMAX_DELAY))
     {
-      ESP_LOGI(TAG,"BT Connect SCAN Stop");
+      switch(msg_iTag.msgType) {
+        case MSG_ITAG_CONFIG:
+        {
+          ESP_LOGI(TAG,"received: MSG_ITAG_CONFIG");
+          //delay(2000);
+          ESP_LOGI(TAG,"BT Connect SCAN Stop");
 
-      doBTScan = false;
-      NimBLEDevice::getScan()->stop();
+          doBTScan = false;
+          NimBLEDevice::getScan()->stop();
 
-      do {  // Connect to all in the queue
-        NimBLEAddress bleAddress(bleAddress64);
-        ESP_LOGI(TAG,"BT Connect %s", bleAddress.toString().c_str());
-        BTconnect(bleAddress);
-      } while (xQueueReceive(queueBTConnect, &(bleAddress64), (TickType_t)0)); // empty the queue
-      
-      ESP_LOGI(TAG,"BT Connect SCAN Start");
-      doBTScan = true;
-      NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
+          BTconnect(msg_iTag); //Will update battery
+          
+          ESP_LOGI(TAG,"BT Connect SCAN Start");
+          //delay(2000);
+          doBTScan = true;
+          NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
+
+          // Send responce/activate iTag
+          msg_iTag.msgType = MSG_ITAG_CONFIGURED;
+
+          ESP_LOGI(TAG,"send: MSG_ITAG_CONFIGURED");
+          //delay(2000);
+          //ESP_LOGI(TAG,"send MSG_ITAG_CONFIGURED NOW---------");
+          BaseType_t xReturned = xQueueSend(queueiTagDetected, (void*)&msg_iTag, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
+          if (!xReturned)
+          {
+            ESP_LOGE(TAG,"ERROR iTAG detected/configured queue is full RETRY for 1s");
+            xReturned = xQueueSend(queueiTagDetected, (void*)&msg_iTag, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
+            if (!xReturned)
+            {
+            ESP_LOGE(TAG,"ERROR iTAG detected/configured queue is full IGNORE");
+              //TODO do something clever ??? Collect how many?
+            }
+          }
+        }
+        //ESP_LOGI(TAG,"send!!!");
+        //delay(2000);
+        break;
+        default:
+          ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg_iTag.msgType);
+          break;
+      }
+      //ESP_LOGI(TAG,"reloop");
+      //delay(2000);
+    }
+              //ESP_LOGI(TAG,"reloop 2 outside IF!!!");
+  }
+    vTaskDelete( NULL ); // Should never be reached
+}
+
+void vTaskRaceDB( void *pvParameters )
+{
+  /* The parameter value is expected to be 2 as 2 is passed in the
+     pvParameters value in the call to xTaskCreate() below. 
+  */
+  configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+  for( ;; )
+  {
+    msg_iTagDetected msg;
+    if( xQueueReceive(queueiTagDetected, &(msg), (TickType_t)portMAX_DELAY))
+    {
+      switch(msg.msgType) {
+        case MSG_ITAG_DETECTED:
+        {
+          //ESP_LOGI(TAG,"MSG_ITAG_DETECTED");
+          //delay(2000);
+          // iTag detected
+          NimBLEAddress bleAddress(msg.address);
+          for(int j=0; j<ITAG_COUNT; j++)
+          {
+            std::lock_guard<std::mutex> lck(mutexTags);
+            if(bleAddress.toString() == iTags[j].address) {
+              //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
+              //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+
+              time_t newLapTime = msg.time;
+              iTags[j].setRSSI(msg.RSSI);
+              if (msg.battery != INT8_MIN) {
+                iTags[j].battery = msg.battery;
+              }
+
+              iTags[j].connected = true;
+              iTags[j].participant.setTimeSinceLastSeen(0);
+              //tm timeNow = rtc.getTimeStruct();
+              time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
+              uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
+
+              if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+                //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
+                if(!iTags[j].participant.nextLap()) {
+                  //TODO GUI popup ??
+                  ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
+                }
+              }
+              else {
+                time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
+                //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
+                iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
+              }
+
+              iTags[j].updated = true; // Make it redraw when GUI loop looks at it
+
+              if (!iTags[j].active) {
+                ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+                msg.msgType = MSG_ITAG_CONFIG;
+                BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)0); //Don't wait if queue is full, just retry next time we scan the tag
+                if (xReturned)
+                {
+                  //Only mark active if it was possible to put in on the queue, if not it will just retry next time we scan the tag
+                  iTags[j].active = true;  //TODO tristate, falst->asking->true (only send one msg)
+                  //iTags[j].reset(); // will set active = true
+                }
+              }
+            }
+          }
+          break;
+        }
+        case MSG_ITAG_CONFIGURED:
+        {
+          ESP_LOGI(TAG,"MSG_ITAG_CONFIGURED");
+          //delay(2000);
+
+          // iTag active
+          NimBLEAddress bleAddress(msg.address);
+          for(int j=0; j<ITAG_COUNT; j++)
+          {
+            std::lock_guard<std::mutex> lck(mutexTags);
+            // TODO send index? so we don't need the string compare here???
+            if(bleAddress.toString() == iTags[j].address) {
+                            time_t newLapTime = msg.time;
+              iTags[j].setRSSI(msg.RSSI);
+              if (msg.battery != INT8_MIN) {
+                iTags[j].battery = msg.battery;
+              }
+              iTags[j].participant.setTimeSinceLastSeen(0);
+              iTags[j].active = true;
+            }
+          }          
+          break;
+        }
+        default:
+          ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg.msgType);
+          break;
+      }
     }
   }
     vTaskDelete( NULL ); // Should never be reached
@@ -671,6 +766,21 @@ void vTaskBTConnect( void *pvParameters )
 void initiTAGs()
 {
 
+  delay(10000);
+  // Well we have a lot of memory, so why not allow it, e.g. ITAG_COUNT  :)
+  queueiTagDetected = xQueueCreate(ITAG_COUNT, sizeof(msg_iTagDetected));  // ITAG_COUNT x msg_iTagDetected 
+  if (queueiTagDetected == 0){
+    ESP_LOGE(TAG,"Failed to create queueiTagDetected = %p\n", queueiTagDetected);
+    // TODO Something more clever here?
+  }
+
+  // lets just make the queue big enough for all (it should work to make it smaller)
+  queueBTConnect = xQueueCreate(ITAG_COUNT, sizeof(msg_iTagDetected));  // ITAG_COUNT x msg_iTagDetected
+  if (queueBTConnect == 0){
+    ESP_LOGE(TAG,"Failed to create queueBTConnect = %p\n", queueBTConnect);
+    // TODO Something more clever here?
+  }
+
   // Start BT Task (scan and inital connect&config)
   BaseType_t xReturned;
   TaskHandle_t xHandle = NULL;
@@ -678,10 +788,28 @@ void initiTAGs()
   xReturned = xTaskCreate(
                   vTaskBTConnect,       /* Function that implements the task. */
                   "BTConnect",          /* Text name for the task. */
-                  4096,      /* Stack size in words, not bytes. */
-                  ( void * ) 1,    /* Parameter passed into the task. */
-                  tskIDLE_PRIORITY,/* Priority at which the task is created. */
-                  &xHandle );      /* Used to pass out the created task's handle. */
+                  4096,                 /* Stack size in words, not bytes. */
+                  ( void * ) 1,         /* Parameter passed into the task. */
+                  20,                   /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandle );           /* Used to pass out the created task's handle. */
+
+  if( xReturned == pdPASS )
+  {
+      /* The task was created.  Use the task's handle to delete the task. */
+      //vTaskDelete( xHandle );
+  }
+
+
+  // Start iTag Task
+  TaskHandle_t xHandle2 = NULL;
+  /* Create the task, storing the handle. */
+  xReturned = xTaskCreate(
+                  vTaskRaceDB,       /* Function that implements the task. */
+                  "RaceDB",          /* Text name for the task. */
+                  4096,              /* Stack size in words, not bytes. */
+                  ( void * ) 2,      /* Parameter passed into the task. */
+                  5,                 /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandle2 );       /* Used to pass out the created task's handle. */
 
   if( xReturned == pdPASS )
   {
