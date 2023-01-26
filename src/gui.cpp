@@ -170,13 +170,13 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
 
   lv_obj_t * ledColor1  = lv_led_create(panel1);
-  lv_led_set_brightness(ledColor1, 200);
+  lv_led_set_brightness(ledColor1, 255);
   lv_led_set_color(ledColor1, lv_palette_main(LV_PALETTE_PINK));
   lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
   lv_led_on(ledColor1);
 
   lv_obj_t * ledColor0  = lv_led_create(panel1);
-  lv_led_set_brightness(ledColor0, 200);
+  lv_led_set_brightness(ledColor0, 255);
   lv_led_set_color(ledColor0, lv_palette_main(LV_PALETTE_GREY));
   lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
