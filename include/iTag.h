@@ -5,7 +5,7 @@
 
 #include "gui.h"
 
-#define ITAG_COUNT 3
+#define ITAG_COUNT 5
 class iTag;
 extern iTag iTags[ITAG_COUNT];
 
@@ -135,7 +135,7 @@ class iTag {
     iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
     void reset();
 
-    void saveGUIObjects(lv_obj_t * ledColor, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
+    void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
     void updateGUI(void);
     void updateGUI_locked(void);
     int getRSSI() {return RSSI;}
@@ -144,7 +144,8 @@ class iTag {
     int RSSI;
 
     // GUI LVGL object used when updating
-    lv_obj_t * ledColor;
+    lv_obj_t * ledColor0;
+    lv_obj_t * ledColor1;
     lv_obj_t * labelName;
     lv_obj_t * labelDist;
     lv_obj_t * labelLaps;

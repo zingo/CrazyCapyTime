@@ -52,10 +52,11 @@ void iTag::reset()
   }
 }
 
-void iTag::saveGUIObjects(lv_obj_t * ledCol, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat)
+void iTag::saveGUIObjects(lv_obj_t * ledCol0, lv_obj_t * ledCol1, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat)
 {
   std::lock_guard<std::mutex> lck(mutexTags);
-  ledColor = ledCol;
+  ledColor0 = ledCol0;
+  ledColor1 = ledCol1;
   labelName = labelNam;
   labelDist = labelDistance;
   labelLaps = labelLap;
@@ -73,7 +74,8 @@ void iTag::updateGUI(void)
 
 void iTag::updateGUI_locked(void)
 {
-  lv_led_set_color(ledColor, lv_color_hex(color0));
+  lv_led_set_color(ledColor0, lv_color_hex(color0));
+  lv_led_set_color(ledColor1, lv_color_hex(color1));
   lv_label_set_text(labelName, participant.getName().c_str());
 //  lv_label_set_text(labelLaps, (std::string("L:") + std::to_string(laps)).c_str());
   lv_label_set_text_fmt(labelDist, "%4.3f km",(participant.getLapCount()*RACE_DISTANCE_LAP)/1000.0);
@@ -146,14 +148,17 @@ void iTag::updateGUI_locked(void)
 
 
 #define ITAG_COLOR_DARKBLUE 0x0b0b45 //Navy blue
-#define ITAG_COLOR_ORANGE 0xFA8128 //Tangerine
-#define ITAG_COLOR_GREEN 0xAEF359 //LIME
-#define ITAG_COLOR_WHITE 0xffffff
+#define ITAG_COLOR_ORANGE   0xFA8128 //Tangerine
+#define ITAG_COLOR_GREEN    0xAEF359 //LIME
+#define ITAG_COLOR_WHITE    0xffffff
+#define ITAG_COLOR_PINK     0xfdb9c8 //Lemonade
 
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7e:be:67", "Zingo",   ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //Orange
-  iTag("ff:ff:10:7d:d2:08", "Stefan",  ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE), //Dark blue
-  iTag("ff:ff:10:82:ef:1e", "Ross", ITAG_COLOR_GREEN,ITAG_COLOR_GREEN)  //Light green BT4
+  iTag("ff:ff:10:7e:be:67", "Zingo",         ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //Orange
+  iTag("ff:ff:10:7d:d2:08", "Stefan",        ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),   //Dark blue
+  iTag("ff:ff:10:6a:79:b4", "FastRunner45",  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),     //pink
+  iTag("ff:ff:10:7d:96:2a", "DrKellerFürer", ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),     //pink
+  iTag("ff:ff:10:82:ef:1e", "Ross",          ITAG_COLOR_GREEN,   ITAG_COLOR_PINK)     //Light green BT4
 };
 
 uint32_t lastScanTime = 0;
@@ -203,7 +208,7 @@ void updateiTagStatus()
     if (iTags[j].updated) {
       iTags[j].updated = false;
       iTags[j].updateGUI_locked(); //TODO don't update all, only what is needed
-      iTags[j].participant.updateChart();
+      iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
     }
 
    // if(iTags[j].active) {
@@ -404,14 +409,15 @@ void vTaskRaceDB( void *pvParameters )
       switch(msg.msgType) {
         case MSG_ITAG_DETECTED:
         {
-          //ESP_LOGI(TAG,"MSG_ITAG_DETECTED");
-          //delay(2000);
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_DETECTED");
           // iTag detected
           std::string bleAddress = convertBLEAddressToString(msg.address);
+          bool found = false;
           for(int j=0; j<ITAG_COUNT; j++)
           {
             std::lock_guard<std::mutex> lck(mutexTags);
-            if(bleAddress == iTags[j].address) {
+            if (bleAddress == iTags[j].address) {
+              found = true;
               //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
               //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
 
@@ -455,12 +461,14 @@ void vTaskRaceDB( void *pvParameters )
               }
             }
           }
+          if (found == false) {
+            ESP_LOGW(TAG,"Scaning iTAGs NO MATCH: %s",bleAddress.c_str());
+          }
           break;
         }
         case MSG_ITAG_CONFIGURED:
         {
-          ESP_LOGI(TAG,"MSG_ITAG_CONFIGURED");
-          //delay(2000);
+          ESP_LOGI(TAG,"Received: MSG_ITAG_CONFIGURED");
 
           // iTag active
           std::string bleAddress = convertBLEAddressToString(msg.address);

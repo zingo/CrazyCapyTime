@@ -169,10 +169,16 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
   lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
 
-  lv_obj_t * ledColor  = lv_led_create(panel1);
-  lv_led_set_brightness(ledColor, 150);
-  lv_led_set_color(ledColor, lv_palette_main(LV_PALETTE_GREY));
-  lv_obj_set_grid_cell(ledColor, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_t * ledColor1  = lv_led_create(panel1);
+  lv_led_set_brightness(ledColor1, 200);
+  lv_led_set_color(ledColor1, lv_palette_main(LV_PALETTE_PINK));
+  lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_led_on(ledColor1);
+
+  lv_obj_t * ledColor0  = lv_led_create(panel1);
+  lv_led_set_brightness(ledColor0, 200);
+  lv_led_set_color(ledColor0, lv_palette_main(LV_PALETTE_GREY));
+  lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelName = lv_label_create(panel1);
   lv_label_set_text(labelName, "");
@@ -243,7 +249,7 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
     //lv_obj_center(label);
     //lv_obj_set_grid_cell(log_out_btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-    iTags[index].saveGUIObjects(ledColor, labelName, labelDist, labelLaps, labelTime, labelConnectionStatus, /* labelBatterySymbol,*/ labelBattery);
+    iTags[index].saveGUIObjects(ledColor0, ledColor1, labelName, labelDist, labelLaps, labelTime, labelConnectionStatus, /* labelBatterySymbol,*/ labelBattery);
     iTags[index].updateGUI();
 }
 
@@ -263,7 +269,7 @@ static void createGUITabRace(lv_obj_t * parent)
   lv_obj_t * chart;
   chart = lv_chart_create(parent);
   lv_obj_align_to(chart, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  lv_obj_set_size(chart, LV_PCT(100), 180);
+  lv_obj_set_size(chart, LV_PCT(100), 400);
   lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER);
   
   const uint32_t ydiv_num = 8;
