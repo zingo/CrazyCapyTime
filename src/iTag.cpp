@@ -74,8 +74,12 @@ void iTag::updateGUI(void)
 
 void iTag::updateGUI_locked(void)
 {
-  lv_led_set_color(ledColor0, lv_color_hex(color0));
-  lv_led_set_color(ledColor1, lv_color_hex(color1));
+
+  lv_obj_set_style_bg_color(ledColor0, lv_color_hex(color0),0);
+  lv_obj_set_style_bg_color(ledColor1, lv_color_hex(color1),0);
+
+//  lv_led_set_color(ledColor0, lv_color_hex(color0));
+//  lv_led_set_color(ledColor1, lv_color_hex(color1));
   lv_label_set_text(labelName, participant.getName().c_str());
 //  lv_label_set_text(labelLaps, (std::string("L:") + std::to_string(laps)).c_str());
   lv_label_set_text_fmt(labelDist, "%4.3f km",(participant.getLapCount()*RACE_DISTANCE_LAP)/1000.0);

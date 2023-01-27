@@ -169,15 +169,40 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
   lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
 
-  lv_obj_t * ledColor1  = lv_led_create(panel1);
-  lv_led_set_brightness(ledColor1, 255);
-  lv_led_set_color(ledColor1, lv_palette_main(LV_PALETTE_PINK));
+/*
+static lv_style_t style_bullet;
+    lv_style_init(&style_bullet);
+    lv_style_set_border_width(&style_bullet, 0);
+    lv_style_set_radius(&style_bullet, LV_RADIUS_CIRCLE);
+    lv_obj_t * ledColor1 = lv_obj_create(panel1);
+    lv_obj_set_size(ledColor1, 30, 30);
+    lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
+    lv_obj_add_style(ledColor1, &style_bullet, 0);
+    lv_obj_set_style_bg_color(ledColor1, lv_palette_main(LV_PALETTE_RED), 0);
+*/
+  lv_obj_t * ledColor1 = lv_obj_create(panel1);
+  lv_obj_set_size(ledColor1, 30, 30);
+  lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor1, lv_palette_main(LV_PALETTE_PINK), 0);
+  lv_obj_set_style_radius(ledColor1, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_border_width(ledColor1, 0,0);
+  lv_obj_set_style_border_color(ledColor1, lv_color_hex(0x000000),0);
+//  lv_obj_t * ledColor1  = lv_led_create(panel1);
+//  lv_led_set_brightness(ledColor1, 255);
+//  lv_led_set_color(ledColor1, lv_palette_main(LV_PALETTE_PINK));
+//  lv_led_on(ledColor1);
   lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-  lv_led_on(ledColor1);
 
-  lv_obj_t * ledColor0  = lv_led_create(panel1);
-  lv_led_set_brightness(ledColor0, 255);
-  lv_led_set_color(ledColor0, lv_palette_main(LV_PALETTE_GREY));
+  lv_obj_t * ledColor0 = lv_obj_create(panel1);
+  lv_obj_set_size(ledColor0, 20, 20);
+  lv_obj_remove_style(ledColor0, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor0, lv_palette_main(LV_PALETTE_GREY), 0);
+  lv_obj_set_style_radius(ledColor0, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_border_width(ledColor0, 1,0);
+  lv_obj_set_style_border_color(ledColor0, lv_color_hex(0xd0d0d0),0);
+//  lv_obj_t * ledColor0  = lv_led_create(panel1);
+//  lv_led_set_brightness(ledColor0, 255);
+//  lv_led_set_color(ledColor0, lv_palette_main(LV_PALETTE_GREY));
   lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelName = lv_label_create(panel1);
