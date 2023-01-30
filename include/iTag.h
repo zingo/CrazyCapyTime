@@ -5,7 +5,7 @@
 
 #include "gui.h"
 
-#define ITAG_COUNT 5
+#define ITAG_COUNT 18
 class iTag;
 extern iTag iTags[ITAG_COUNT];
 

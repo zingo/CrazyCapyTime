@@ -151,18 +151,33 @@ void iTag::updateGUI_locked(void)
 }
 
 
-#define ITAG_COLOR_DARKBLUE 0x0b0b45 //Navy blue
-#define ITAG_COLOR_ORANGE   0xFA8128 //Tangerine
-#define ITAG_COLOR_WHITE    0xe0e0e0
-#define ITAG_COLOR_PINK     0xfdb9c8 //Lemonade
-#define ITAG_COLOR_GREEN    0xAEF359 //Lime
+#define ITAG_COLOR_WHITE    0xe0e0e0 // White
+#define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
+#define ITAG_COLOR_WHITE    0xe0e0e0 // White
+#define ITAG_COLOR_ORANGE   0xFA8128 // Tangerine
+#define ITAG_COLOR_DARKBLUE 0x0b0b45 // Navy blue
+#define ITAG_COLOR_BLACK    0x000000 // Black
+#define ITAG_COLOR_GREEN    0xAEF359 // Lime
 
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7e:be:67", "Zingo",         ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //Orange
-  iTag("ff:ff:10:7d:d2:08", "Stefan",        ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),   //Dark blue
-  iTag("ff:ff:10:6a:79:b4", "Chris",         ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),     //pink
-  iTag("ff:ff:10:7d:96:2a", "Minter",        ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),     //pink
-  iTag("ff:ff:10:82:ef:1e", "Daglish",       ITAG_COLOR_GREEN,   ITAG_COLOR_PINK)     //Light green BT4
+  iTag("ff:ff:10:7d:96:2a", "White1",        ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "White2",      ITAG_COLOR_WHITE,   ITAG_COLOR_BLACK),
+  iTag("ff:ff:00:00:00:00", "White3",      ITAG_COLOR_WHITE,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:6a:79:b4", "Pink1",         ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Pink2",      ITAG_COLOR_PINK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Pink3",      ITAG_COLOR_PINK,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7e:be:67", "Orange1",         ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:00:00:00:00", "Orange2",        ITAG_COLOR_ORANGE,  ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Orange3",        ITAG_COLOR_ORANGE,  ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Orange4",        ITAG_COLOR_ORANGE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7d:d2:08", "Blue1",        ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Blue2",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Blue3",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Blue4",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_BLACK),
+  iTag("ff:ff:00:00:00:00", "Black1",      ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Black2",      ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Black3",      ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:82:ef:1e", "Green",       ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
 };
 
 uint32_t lastScanTime = 0;
