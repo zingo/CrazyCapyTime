@@ -73,6 +73,28 @@ void startRace()
   raceOngoing = true;
 }
 
+void showHeapInfo()
+{
+  ESP_LOGI(TAG, "------------------------------------------ freeHeap: %9d bytes", xPortGetFreeHeapSize());
+  ESP_LOGI(TAG, "MALLOC_CAP_EXEC:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_EXEC));
+  //ESP_LOGI(TAG, "MALLOC_CAP_32BIT:     %9d bytes",heap_caps_get_free_size(MALLOC_CAP_32BIT)); same as MALLOC_CAP_DEFAULT
+  //ESP_LOGI(TAG, "MALLOC_CAP_8BIT:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_8BIT));  same as MALLOC_CAP_DEFAULT
+  ESP_LOGI(TAG, "MALLOC_CAP_DMA:       %9d bytes",heap_caps_get_free_size(MALLOC_CAP_DMA));
+/* seem to always be 0
+  ESP_LOGI(TAG, "MALLOC_CAP_PID2:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID2));
+  ESP_LOGI(TAG, "MALLOC_CAP_PID3:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID3));
+  ESP_LOGI(TAG, "MALLOC_CAP_PID4:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID4));
+  ESP_LOGI(TAG, "MALLOC_CAP_PID5:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID5));
+  ESP_LOGI(TAG, "MALLOC_CAP_PID6:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID6));
+  ESP_LOGI(TAG, "MALLOC_CAP_PID7:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_PID7));  */
+  ESP_LOGI(TAG, "MALLOC_CAP_SPIRAM:    %9d bytes",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  ESP_LOGI(TAG, "MALLOC_CAP_INTERNAL:  %9d bytes",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  ESP_LOGI(TAG, "MALLOC_CAP_DEFAULT:   %9d bytes",heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
+  //ESP_LOGI(TAG, "MALLOC_CAP_IRAM_8BIT: %9d bytes",heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT)); seem to always be 0
+  //ESP_LOGI(TAG, "MALLOC_CAP_RETENTION: %9d bytes",heap_caps_get_free_size(MALLOC_CAP_RETENTION)); same as MALLOC_CAP_EXEC
+  //ESP_LOGI(TAG, "MALLOC_CAP_RTCRAM:    %9d bytes",heap_caps_get_free_size(MALLOC_CAP_RTCRAM)); uniteresting for now
+}
+
 void initLittleFS() 
 {
   if (!LittleFS.begin(true)) { // true = formatOnFail
@@ -81,29 +103,6 @@ void initLittleFS()
   }
   ESP_LOGI(TAG, "LittleFS started");
 }
-
-void showHeapInfo()
-{
-  ESP_LOGI(TAG, "freeHeap:             %9d bytes", xPortGetFreeHeapSize());
-  ESP_LOGI(TAG, "MALLOC_CAP_EXEC:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_EXEC));
-  ESP_LOGI(TAG, "MALLOC_CAP_32BIT:     %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_32BIT));
-  ESP_LOGI(TAG, "MALLOC_CAP_8BIT:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_8BIT));
-  ESP_LOGI(TAG, "MALLOC_CAP_DMA:       %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_DMA));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID2:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID2));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID3:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID3));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID4:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID4));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID5:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID5));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID6:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID6));
-  ESP_LOGI(TAG, "MALLOC_CAP_PID7:      %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_PID7));
-  ESP_LOGI(TAG, "MALLOC_CAP_SPIRAM:    %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-  ESP_LOGI(TAG, "MALLOC_CAP_INTERNAL:  %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-  ESP_LOGI(TAG, "MALLOC_CAP_DEFAULT:   %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
-  ESP_LOGI(TAG, "MALLOC_CAP_IRAM_8BIT: %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT));
-  ESP_LOGI(TAG, "MALLOC_CAP_RETENTION: %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_RETENTION));
-  ESP_LOGI(TAG, "MALLOC_CAP_RTCRAM:    %9d (0x%08x)",heap_caps_get_free_size(MALLOC_CAP_RTCRAM));
-}
-
-
 
 void setup()
 {
@@ -140,5 +139,11 @@ void loop()
   loopHandlLVGL();
   loopHandlTAGs();
   delay(5);
-  //ESP_LOGI(TAG, "loop done");
+
+  static unsigned long lastTimeUpdate = 0;
+  unsigned long now = rtc.getEpoch();
+  if ((lastTimeUpdate+60) <= now) { //one per minute
+    lastTimeUpdate = now;
+    showHeapInfo(); //Monitor heap to see if memory leaks
+  }
 }
