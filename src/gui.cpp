@@ -153,13 +153,15 @@ static void btnTagSub_event_cb(lv_event_t * e)
     }
 }
 
+static lv_style_t style_iTag0;
+static lv_style_t style_iTag1;
+
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
   // index is index into iTag database
   lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
   lv_obj_set_style_pad_all(panel1, 13,0); 
-
 
   static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
@@ -169,40 +171,14 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
   lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
 
-/*
-static lv_style_t style_bullet;
-    lv_style_init(&style_bullet);
-    lv_style_set_border_width(&style_bullet, 0);
-    lv_style_set_radius(&style_bullet, LV_RADIUS_CIRCLE);
-    lv_obj_t * ledColor1 = lv_obj_create(panel1);
-    lv_obj_set_size(ledColor1, 30, 30);
-    lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
-    lv_obj_add_style(ledColor1, &style_bullet, 0);
-    lv_obj_set_style_bg_color(ledColor1, lv_palette_main(LV_PALETTE_RED), 0);
-*/
   lv_obj_t * ledColor1 = lv_obj_create(panel1);
-  lv_obj_set_size(ledColor1, 30, 30);
+  lv_obj_add_style(ledColor1, &style_iTag1, 0);
   lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
-  lv_obj_set_style_bg_color(ledColor1, lv_palette_main(LV_PALETTE_PINK), 0);
-  lv_obj_set_style_radius(ledColor1, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_border_width(ledColor1, 0,0);
-  lv_obj_set_style_border_color(ledColor1, lv_color_hex(0x000000),0);
-//  lv_obj_t * ledColor1  = lv_led_create(panel1);
-//  lv_led_set_brightness(ledColor1, 255);
-//  lv_led_set_color(ledColor1, lv_palette_main(LV_PALETTE_PINK));
-//  lv_led_on(ledColor1);
   lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * ledColor0 = lv_obj_create(panel1);
-  lv_obj_set_size(ledColor0, 20, 20);
+  lv_obj_add_style(ledColor0, &style_iTag0, 0);
   lv_obj_remove_style(ledColor0, NULL, LV_PART_SCROLLBAR);
-  lv_obj_set_style_bg_color(ledColor0, lv_palette_main(LV_PALETTE_GREY), 0);
-  lv_obj_set_style_radius(ledColor0, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_border_width(ledColor0, 1,0);
-  lv_obj_set_style_border_color(ledColor0, lv_color_hex(0xd0d0d0),0);
-//  lv_obj_t * ledColor0  = lv_led_create(panel1);
-//  lv_led_set_brightness(ledColor0, 255);
-//  lv_led_set_color(ledColor0, lv_palette_main(LV_PALETTE_GREY));
   lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelName = lv_label_create(panel1);
@@ -381,6 +357,21 @@ void createGUI(void)
   lv_style_init(&styleBullet);
   lv_style_set_border_width(&styleBullet, 0);
   lv_style_set_radius(&styleBullet, LV_RADIUS_CIRCLE);
+
+  lv_style_init(&style_iTag0);
+  lv_style_set_radius(&style_iTag0, LV_RADIUS_CIRCLE);
+  lv_style_set_size(&style_iTag0,20);
+  lv_style_set_bg_color(&style_iTag0,lv_palette_main(LV_PALETTE_PINK));
+  lv_style_set_border_width(&style_iTag0, 1);
+  lv_style_set_border_color(&style_iTag0, lv_color_hex(0xd0d0d0));
+  //lv_style_remove_prop(&style_iTag0, LV_PART_SCROLLBAR);
+
+  lv_style_init(&style_iTag1);
+  lv_style_set_radius(&style_iTag1, LV_RADIUS_CIRCLE);
+  lv_style_set_size(&style_iTag1,30);
+  lv_style_set_bg_color(&style_iTag1,lv_palette_main(LV_PALETTE_PINK));
+  lv_style_set_border_width(&style_iTag1, 0);
+  //lv_style_remove_prop(&style_iTag1, LV_PART_SCROLLBAR);
 
   tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 70); //70 - hight of tab area
 
