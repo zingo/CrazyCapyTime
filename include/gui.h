@@ -2,9 +2,6 @@
 
 #include <lvgl.h>
 
-extern lv_style_t styleIcon;
-extern lv_style_t styleIconOff;
-
 // Call this from setup() to init GFX
 void initLVGL();
 

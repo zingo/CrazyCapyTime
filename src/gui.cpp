@@ -73,9 +73,12 @@ static lv_style_t styleLargeText;
 static lv_style_t styleTagText;
 static lv_style_t styleTagSmallText;
 static lv_style_t styleTime;
-lv_style_t styleIcon;
-lv_style_t styleIconOff;
+static lv_style_t styleIcon;
+static lv_style_t styleIconOff;
 static lv_style_t styleBullet;
+static lv_style_t style_iTag0;  //iTag circle
+static lv_style_t style_iTag1;  //iTag rubber circle
+
 static lv_obj_t *labelRaceTime;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
@@ -152,9 +155,6 @@ static void btnTagSub_event_cb(lv_event_t * e)
       tag->participant.prevLap();
     }
 }
-
-static lv_style_t style_iTag0;
-static lv_style_t style_iTag1;
 
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
