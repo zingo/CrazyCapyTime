@@ -49,7 +49,7 @@
 #define LV_MEM_CUSTOM 0
 #if LV_MEM_CUSTOM == 0
     /*Size of the memory available for `lv_mem_alloc()` in bytes (>= 2kB)*/
-    #define LV_MEM_SIZE (48U * 1024U)          /*[bytes]*/
+    #define LV_MEM_SIZE (128U * 1024U)          /*[bytes]*/
 
     /*Set an address for the memory pool instead of allocating it as a normal array. Can be in external SRAM too.*/
     #define LV_MEM_ADR 0     /*0: unused*/
@@ -57,6 +57,8 @@
     #if LV_MEM_ADR == 0
         //#define LV_MEM_POOL_INCLUDE your_alloc_library  /* Uncomment if using an external allocator*/
         //#define LV_MEM_POOL_ALLOC   your_alloc          /* Uncomment if using an external allocator*/
+        #define LV_MEM_POOL_INCLUDE <esp32-hal-psram.h>
+        #define LV_MEM_POOL_ALLOC ps_malloc
     #endif
 
 #else       /*LV_MEM_CUSTOM*/
