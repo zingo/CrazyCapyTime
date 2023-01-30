@@ -224,8 +224,8 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
   lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, &iTags[index]);
 
-  label = lv_label_create(btn);          /*Add a label to the button*/
-  lv_label_set_text(label, "-");                     /*Set the labels text*/
+  label = lv_label_create(btn);
+  lv_label_set_text(label, "-");
   lv_obj_center(label);
   lv_obj_add_style(label, &styleTagSmallText, 0);
 
@@ -235,8 +235,8 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
   lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, &iTags[index]);
 
-  label = lv_label_create(btn);          /*Add a label to the button*/
-  lv_label_set_text(label, "+");                     /*Set the labels text*/
+  label = lv_label_create(btn);
+  lv_label_set_text(label, "+");
   lv_obj_center(label);
   lv_obj_add_style(label, &styleTagSmallText, 0);
 
@@ -260,7 +260,6 @@ static void createGUITabRace(lv_obj_t * parent)
   lv_obj_set_style_pad_column(parent,5,0);
   lv_obj_set_style_pad_row(parent,5,0);
   lv_obj_set_style_pad_all(parent, 5,0); 
-
 
   for(int i=0; i<ITAG_COUNT; i++)
   {
@@ -364,16 +363,16 @@ void createGUI(void)
   lv_style_set_bg_color(&style_iTag0,lv_palette_main(LV_PALETTE_PINK));
   lv_style_set_border_width(&style_iTag0, 1);
   lv_style_set_border_color(&style_iTag0, lv_color_hex(0xd0d0d0));
-  //lv_style_remove_prop(&style_iTag0, LV_PART_SCROLLBAR);
+  //lv_style_remove_prop(&style_iTag0, LV_PART_SCROLLBAR); // TODO Figure out if this could be done from style
 
   lv_style_init(&style_iTag1);
   lv_style_set_radius(&style_iTag1, LV_RADIUS_CIRCLE);
   lv_style_set_size(&style_iTag1,30);
   lv_style_set_bg_color(&style_iTag1,lv_palette_main(LV_PALETTE_PINK));
   lv_style_set_border_width(&style_iTag1, 0);
-  //lv_style_remove_prop(&style_iTag1, LV_PART_SCROLLBAR);
+  //lv_style_remove_prop(&style_iTag1, LV_PART_SCROLLBAR); // TODO Figure out if this could be done from style
 
-  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 70); //70 - hight of tab area
+  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 70); //70 - height of tab area
 
   lv_obj_set_style_text_font(lv_scr_act(), fontNormal, 0);
 
