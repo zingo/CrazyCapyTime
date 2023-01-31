@@ -158,6 +158,39 @@ static void btnTagSub_event_cb(lv_event_t * e)
     }
 }
 
+class guiParticipant {
+  public:
+    uint32_t raceDBHandle; // save handle to use in the RaceDB messages (supplied ti RaceDB)
+
+    // ParticipantTab
+    lv_obj_t * ledColor0;
+    lv_obj_t * ledColor1;
+    lv_obj_t * labelName;
+    lv_obj_t * labelDist;
+    lv_obj_t * labelLaps;
+    lv_obj_t * labelTime;
+    lv_obj_t * labelConnectionStatus;
+    //lv_obj_t * labelBatterySymbol;
+    lv_obj_t * labelBattery;
+
+    // Graph
+    lv_obj_t * lapsChart;
+    lv_chart_series_t * lapsSeries;
+
+    bool inRace;
+    // RaceTab (only valid if inRace is true)
+    lv_obj_t * ledRaceColor0;
+    lv_obj_t * ledRaceColor1;
+    lv_obj_t * labelRaceName;
+    lv_obj_t * labelRaceDist;
+    lv_obj_t * labelRaceLaps;
+    lv_obj_t * labelRaceTime;
+    lv_obj_t * labelRaceConnectionStatus;
+};
+
+guiParticipant guiParticipants[ITAG_COUNT];
+uint32_t nextFreeParicipandHandle=0;  // We use the index into guiParticipants as a handle wi give to others like RaceDB
+
 void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 {
   // index is index into iTag database
@@ -267,7 +300,7 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
   lv_obj_set_style_pad_all(panel1, 13,0); 
 
-  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
 
   int x_pos = 0;
@@ -319,17 +352,18 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
   lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
   lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-/*
-  lv_obj_t * labelBatterySymbol = lv_label_create(panel1);
-  lv_obj_add_style(labelBatterySymbol, &styleIcon, 0);
-  lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
-  lv_obj_set_grid_cell(labelBatterySymbol, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-*/
 
-  lv_obj_t * labelBattery = lv_label_create(panel1);
-  lv_label_set_text(labelBattery, "");
-  lv_obj_add_style(labelBattery, &styleTagSmallText, 0);
-  lv_obj_set_grid_cell(labelBattery, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+  // All well so fare, lets update the internal struct with the info.
+  guiParticipants[nextFreeParicipandHandle].inRace = true;
+  guiParticipants[nextFreeParicipandHandle].ledRaceColor0 = ledColor0;
+  guiParticipants[nextFreeParicipandHandle].ledRaceColor1 = ledColor1;
+  guiParticipants[nextFreeParicipandHandle].labelRaceName = labelName;
+  guiParticipants[nextFreeParicipandHandle].labelRaceDist = labelDist;
+  guiParticipants[nextFreeParicipandHandle].labelRaceLaps = labelLaps;
+  guiParticipants[nextFreeParicipandHandle].labelRaceTime = labelTime;
+  guiParticipants[nextFreeParicipandHandle].labelRaceConnectionStatus = labelConnectionStatus;
+  // TODO reply back with handle
+  nextFreeParicipandHandle++;
 
 /*
   lv_obj_t * btn;
