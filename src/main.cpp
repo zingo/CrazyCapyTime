@@ -39,6 +39,7 @@ bool raceOngoing = false;
 
 QueueHandle_t queueiTagDetected;
 QueueHandle_t queueBTConnect;
+QueueHandle_t queueGFX; 
 
 void initMessageQueues()
 {
@@ -55,6 +56,15 @@ void initMessageQueues()
     ESP_LOGE(TAG,"Failed to create queueBTConnect = %p\n", queueBTConnect);
     // TODO Something more clever here?
   }
+
+  // lets just make the queue big enough for all (it should work to make it smaller)
+  queueGFX = xQueueCreate(ITAG_COUNT, sizeof(msg_Participant));  // ITAG_COUNT x msg_iTagDetected
+  if (queueGFX == 0){
+    ESP_LOGE(TAG,"Failed to create queueGFX = %p\n", queueGFX);
+    // TODO Something more clever here?
+  }
+
+
 }
 
 void startRaceCountdown()
@@ -142,7 +152,7 @@ void loop()
 
   static unsigned long lastTimeUpdate = 0;
   unsigned long now = rtc.getEpoch();
-  if ((lastTimeUpdate+60) <= now) { //one per minute
+  if ((lastTimeUpdate+5*60) <= now) { //one per 5 min
     lastTimeUpdate = now;
     showHeapInfo(); //Monitor heap to see if memory leaks
   }

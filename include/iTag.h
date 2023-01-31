@@ -45,7 +45,7 @@ class lapData {
 
 class participantData {
   public:
-    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { lapsData.resize(MAX_SAVED_LAPS); }
+    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
     std::string getName() {return name;}
     void setName(std::string inName) {name = inName;}
     uint32_t getLapCount() {return laps;}
@@ -82,6 +82,10 @@ class participantData {
 
     uint32_t getTimeSinceLastSeen() {return timeSinceLastSeen;}
     void setTimeSinceLastSeen(time_t inTime) {timeSinceLastSeen=inTime;}
+
+    bool getInRace() {return inRace;}
+    void setInRace(bool val) {inRace = val;}
+
     void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
       lapsChart = chart;
       lapsSeries = series;
@@ -113,6 +117,7 @@ class participantData {
     uint32_t laps;
     uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
     std::vector<lapData> lapsData;
+    bool inRace;
     //GUI stuff
     lv_obj_t * lapsChart;
     lv_chart_series_t * lapsSeries;
@@ -128,11 +133,11 @@ class iTag {
     uint32_t color1;      // Color of iTag holder
     int32_t battery;      // 0-100 and -1 when unknown
     bool active;          // As in part of race
-    bool connected;       // As near enough right now
+    bool connected;       // As near enough right now, e.g. spoted recently
   
     participantData participant;
     bool updated;
-    iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1);
+    iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
     void reset();
 
     void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);

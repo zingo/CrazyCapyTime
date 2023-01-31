@@ -26,18 +26,44 @@ void refreshTagGUI()
   updateTagsNow = true;
 }
 
-iTag::iTag(std::string inAddress,std::string inName, uint32_t inColor0, uint32_t inColor1)
+bool AddUserToRace(participantData &participant,uint32_t col0, uint32_t col1)
 {
-    address = inAddress;
-    color0 = inColor0;
-    color1 = inColor1;
-    battery = -1; //Unknown or Not read yet
-    RSSI = -9999;
-    active = false;
-    connected = false;
-    participant.setName(inName);
-    participant.clearLaps();
-    updated = false;
+  msg_Participant msgParticipant;
+  msgParticipant.msgType = MSG_GFX_ADD_USER_TO_RACE;
+  msgParticipant.color0 = col0;
+  msgParticipant.color1 = col1;
+  std::string name = participant.getName();
+  size_t len = name.copy(msgParticipant.name, PARTICIPANT_NAME_LENGTH);
+  msgParticipant.name[len] = '\0';
+  msgParticipant.distance = 0;
+  msgParticipant.laps = participant.getLapCount();
+  msgParticipant.lastlaptime = participant.getCurrentLapStart();
+  
+
+  ESP_LOGI(TAG,"Add User: MSG:0x%x color:(0x%x,0x%x)  Name:%s dist:%d laps:%d lastlaptime:%d",
+               msgParticipant.msgType, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.distance,msgParticipant.laps, msgParticipant.lastlaptime);
+
+  BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msgParticipant, (TickType_t)2000); //Don't wait if queue is full, just retry next time we scan the tag
+  return xReturned;
+}
+
+#include <string>
+
+iTag::iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1)
+{
+  address = inAddress;
+  color0 = inColor0;
+  color1 = inColor1;
+  battery = -1; //Unknown or Not read yet
+  RSSI = -9999;
+  active = false;
+  connected = false;
+
+  // TODO make sure string is shorter then PARTICIPANT_NAME_LENGTH
+  participant.setName(inName);
+  participant.setInRace(isInRace);
+  participant.clearLaps();
+  updated = false;
 }
 
 void iTag::reset()
@@ -159,25 +185,26 @@ void iTag::updateGUI_locked(void)
 #define ITAG_COLOR_BLACK    0x000000 // Black
 #define ITAG_COLOR_GREEN    0xAEF359 // Lime
 
+//TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7d:96:2a", "White1",        ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "White2",      ITAG_COLOR_WHITE,   ITAG_COLOR_BLACK),
-  iTag("ff:ff:00:00:00:00", "White3",      ITAG_COLOR_WHITE,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:6a:79:b4", "Pink1",         ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Pink2",      ITAG_COLOR_PINK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:00:00:00:00", "Pink3",      ITAG_COLOR_PINK,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7e:be:67", "Orange1",         ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:00:00:00:00", "Orange2",        ITAG_COLOR_ORANGE,  ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Orange3",        ITAG_COLOR_ORANGE,  ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Orange4",        ITAG_COLOR_ORANGE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7d:d2:08", "Blue1",        ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),
-  iTag("ff:ff:00:00:00:00", "Blue2",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Blue3",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Blue4",       ITAG_COLOR_DARKBLUE,ITAG_COLOR_BLACK),
-  iTag("ff:ff:00:00:00:00", "Black1",      ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:00:00:00:00", "Black2",      ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Black3",      ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:82:ef:1e", "Green",       ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
+  iTag("ff:ff:10:7d:96:2a", "White1",  true,       ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "White2",  true,     ITAG_COLOR_WHITE,   ITAG_COLOR_BLACK),
+  iTag("ff:ff:00:00:00:00", "White3",  false,    ITAG_COLOR_WHITE,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:6a:79:b4", "Pink1",   false,      ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Pink2",   true,   ITAG_COLOR_PINK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Pink3",   false,   ITAG_COLOR_PINK,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7e:be:67", "Orange1", true,        ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:00:00:00:00", "Orange2", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Orange3", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Orange4", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7d:d2:08", "Blue1",   true,     ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Blue2",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE),
+  iTag("ff:ff:00:00:00:00", "Blue3",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Blue4",   true,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_BLACK),
+  iTag("ff:ff:00:00:00:00", "Black1",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:00:00:00:00", "Black2",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
+  iTag("ff:ff:00:00:00:00", "Black3",  true,    ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:82:ef:1e", "Green",   false,    ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
 };
 
 uint32_t lastScanTime = 0;
@@ -312,6 +339,7 @@ void loadRace()
     participantJson["name"] = iTags[i].participant.getName();
     participantJson["laps"] = iTags[i].participant.getLapCount();
     participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
+    participantJson["inRace"] = iTags[i].participant.getInRace();
 
     JsonArray lapArrayJson = tagJson.createNestedArray("lap");
     for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
@@ -420,6 +448,16 @@ void vTaskRaceDB( void *pvParameters )
      pvParameters value in the call to xTaskCreate() below. 
   */
   configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+
+  // Add all Participants in race to race page
+  for(int i=0; i<ITAG_COUNT; i++)
+  {
+    if(iTags[i].participant.getInRace()) {
+      // Add Participand to Race page
+      AddUserToRace(iTags[i].participant,iTags[i].color0,iTags[i].color1);
+    }
+  }
+
   for( ;; )
   {
     msg_iTagDetected msg;

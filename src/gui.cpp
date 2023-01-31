@@ -34,6 +34,7 @@
 #include <Arduino_GFX_Library.h>
 
 #include "gui.h"
+#include "messages.h"
 #include "iTag.h"
 
 #define TAG "GFX"
@@ -80,6 +81,7 @@ static lv_style_t style_iTag0;  //iTag circle
 static lv_style_t style_iTag1;  //iTag rubber circle
 
 static lv_obj_t *labelRaceTime;
+static lv_obj_t *tabRace;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
 static const lv_font_t * fontTag = LV_FONT_DEFAULT;
@@ -161,7 +163,7 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   // index is index into iTag database
   lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
-  lv_obj_set_style_pad_all(panel1, 13,0); 
+  lv_obj_set_style_pad_all(panel1, 13,0);
 
   static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
@@ -254,7 +256,116 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
     iTags[index].updateGUI();
 }
 
+
+bool gfxAddUserToRace(msg_Participant &msgParticipant)
+{
+
+  ESP_LOGI(TAG,"Add User: MSG:0x%x color:(0x%x,0x%x)  Name:%s dist:%d laps:%d lastlaptime:%d",
+               msgParticipant.msgType, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.distance,msgParticipant.laps, msgParticipant.lastlaptime);
+
+  lv_obj_t * panel1 = lv_obj_create(tabRace);
+  lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(panel1, 13,0); 
+
+  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+
+  int x_pos = 0;
+
+  lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
+  lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
+
+  lv_obj_t * ledColor1 = lv_obj_create(panel1);
+  lv_obj_add_style(ledColor1, &style_iTag1, 0);
+  lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor1, lv_color_hex(msgParticipant.color1),0);
+  lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * ledColor0 = lv_obj_create(panel1);
+  lv_obj_add_style(ledColor0, &style_iTag0, 0);
+  lv_obj_remove_style(ledColor0, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor0, lv_color_hex(msgParticipant.color0),0);
+  lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * labelName = lv_label_create(panel1);
+  //std::string nameParticipant = std::string(participant.name);
+  lv_label_set_text(labelName, msgParticipant.name);
+  lv_obj_add_style(labelName, &styleTagText, 0);
+  lv_label_set_long_mode(labelName, LV_LABEL_LONG_CLIP);
+  lv_obj_set_grid_cell(labelName, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * labelDist = lv_label_create(panel1);
+  lv_obj_add_style(labelDist, &styleTagText, 0);
+//  lv_label_set_text(labelDist, "00.000");
+  lv_label_set_text_fmt(labelDist, "%4.3f km",(msgParticipant.laps*RACE_DISTANCE_LAP)/1000.0);
+  lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * labelLaps = lv_label_create(panel1);
+  //lv_label_set_text(labelLaps, "Laps");
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",msgParticipant.laps,RACE_LAPS);
+  lv_obj_add_style(labelLaps, &styleTagText, 0);
+  lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * labelTime = lv_label_create(panel1);
+  lv_obj_add_style(labelTime, &styleTagText, 0);
+//  lv_label_set_text(labelTime, "00:00:00");
+  struct tm timeinfo;
+  time_t tt = msgParticipant.lastlaptime;
+  localtime_r(&tt, &timeinfo);
+  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+  lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
+  lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
+  lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
+  lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+/*
+  lv_obj_t * labelBatterySymbol = lv_label_create(panel1);
+  lv_obj_add_style(labelBatterySymbol, &styleIcon, 0);
+  lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
+  lv_obj_set_grid_cell(labelBatterySymbol, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+*/
+
+  lv_obj_t * labelBattery = lv_label_create(panel1);
+  lv_label_set_text(labelBattery, "");
+  lv_obj_add_style(labelBattery, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(labelBattery, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+/*
+  lv_obj_t * btn;
+  lv_obj_t *label;
+  btn = lv_btn_create(panel1); 
+  lv_obj_align_to(btn, tabRace, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, &iTags[index]);
+  label = lv_label_create(btn);
+  lv_label_set_text(label, "-");
+  lv_obj_center(label);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+  btn = lv_btn_create(panel1); 
+  lv_obj_align_to(btn, tabRace, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, &iTags[index]);
+  label = lv_label_create(btn);
+  lv_label_set_text(label, "+");
+  lv_obj_center(label);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+*/
+  return true;  //TODO check errors
+}
+
+
 static void createGUITabRace(lv_obj_t * parent)
+{
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,5,0);
+  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_all(parent, 5,0); 
+
+}
+
+static void createGUITabParticipant(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_column(parent,5,0);
@@ -372,33 +483,41 @@ void createGUI(void)
   lv_style_set_border_width(&style_iTag1, 0);
   //lv_style_remove_prop(&style_iTag1, LV_PART_SCROLLBAR); // TODO Figure out if this could be done from style
 
-  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 70); //70 - height of tab area
+#define TAB_POS (((LV_HOR_RES / 3)*2)-50)
+#define TAB_HIGHT 70
+#define TAB_TIME_WIDTH 200
+
+  tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, TAB_HIGHT); // height of tab area
 
   lv_obj_set_style_text_font(lv_scr_act(), fontNormal, 0);
 
-#define TAB_POS ((LV_HOR_RES / 4)*3)
   lv_obj_t * tab_btns = lv_tabview_get_tab_btns(tv);
   lv_obj_set_style_pad_left(tab_btns, TAB_POS, 0);
 
-  lv_obj_t * logo = lv_img_create(tab_btns);
+//  lv_obj_t * logo = lv_img_create(tab_btns);
 //  LV_IMG_DECLARE(img_lvgl_logo);
 //  lv_img_set_src(logo, &img_lvgl_logo);
-  lv_obj_align(logo, LV_ALIGN_LEFT_MID, -TAB_POS + 25, 0);
+//  lv_obj_align(logo, LV_ALIGN_LEFT_MID, -TAB_POS + 25, 0);
 
   lv_obj_t * labelRaceName = lv_label_create(tab_btns);
   lv_label_set_text(labelRaceName, "Revolution Marathon");
   lv_obj_add_style(labelRaceName, &styleTitle, 0);
-  lv_obj_align_to(labelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+//  lv_obj_align_to(labelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+  lv_obj_align(labelRaceName, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 10);
 
   lv_obj_t * label = lv_label_create(tab_btns);
   lv_label_set_text(label, "Crazy Capy Time");
   lv_obj_add_style(label, &styleTextMuted, 0);
-  lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
+//  lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
+  lv_obj_align(label, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 35);
+//  lv_obj_align_to(label, labelRaceName, LV_ALIGN_OUT_LEFT_BOTTOM, 0, 20);
 
   lv_obj_t * btnTime = lv_btn_create(tab_btns); 
-  lv_obj_align_to(btnTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
+  lv_obj_align_to(btnTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, -10);
+  //lv_obj_align(btnTime, LV_ALIGN_CENTER, -30, -((TAB_HIGHT-10)/2));
   //lv_obj_set_pos(btnTime, 10, 10);                            /*Set its position*/
   //lv_obj_set_size(btnTime, 120, 50);                          /*Set its size*/
+  lv_obj_set_width(btnTime,TAB_TIME_WIDTH);
   lv_obj_add_event_cb(btnTime, btnTime_event_cb, LV_EVENT_ALL, NULL);
 
   labelRaceTime = lv_label_create(btnTime);          /*Add a label to the button*/
@@ -414,9 +533,12 @@ void createGUI(void)
   lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
 */
 
-  lv_obj_t * t1 = lv_tabview_add_tab(tv, "Race");
- 
-  createGUITabRace(t1);
+  tabRace = lv_tabview_add_tab(tv, "Race"); 
+  lv_obj_t * t2 = lv_tabview_add_tab(tv, "Participants");
+  //lv_obj_t * t3 = lv_tabview_add_tab(tv, "Setup");
+
+  createGUITabRace(tabRace);
+  createGUITabParticipant(t2);
 }
 
 // Display callback to flush the buffer to screen
@@ -503,6 +625,8 @@ void initLVGL()
     disp_drv.ver_res = screenHeight;
     disp_drv.flush_cb = lvgl_displayFlushCallBack;
     disp_drv.draw_buf = &draw_buf;
+//    disp_drv.rotated = LV_DISP_ROT_90;
+//    disp_drv.sw_rotate = 1;
     lv_disp_drv_register(&disp_drv);
 
     /* Initialize the (dummy) input device driver */
@@ -520,6 +644,22 @@ void initLVGL()
 
 void loopHandlLVGL()
 {
+
+  msg_Participant msg;
+  if( xQueueReceive(queueGFX, &(msg), (TickType_t)0))  // Don't block main loop just take a peek
+  {
+    switch(msg.msgType) {
+      case MSG_GFX_ADD_USER_TO_RACE:
+      {
+        gfxAddUserToRace(msg);
+        break;
+      }
+      default:
+        ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg.msgType);
+        break;
+    }
+  }
+
   static unsigned long lastTimeUpdate = 356*24*60*60; //start on something we will never match like 1971
   unsigned long now = rtc.getEpoch();
   if (lastTimeUpdate != now) {
