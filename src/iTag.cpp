@@ -75,8 +75,8 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
     msg.UpdateStatus.battery = tag.battery;
     msg.UpdateStatus.inRace = tag.participant.getInRace();
 
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-    //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+                msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
     return xReturned;
@@ -601,10 +601,27 @@ void vTaskRaceDB( void *pvParameters )
           //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
           //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
           iTags[msg.AddedToGFX.handleDB].participant.setHandleGFX(msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
-          //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d DONE", 
-          //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
           break;
         }
+        case MSG_ITAG_UPDATE_USER_RACE_STATUS:
+        {
+          uint32_t handleDB = msg.UpdateParticipantRaceStatus.handleDB;
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d-------------", 
+               msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
+          if (iTags[handleDB].participant.getInRace() !=  msg.UpdateParticipantRaceStatus.inRace)
+          {
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d NOT SAME UPDATE-------------", 
+               msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
+            // In race changed, update
+            iTags[handleDB].participant.setInRace(msg.UpdateParticipantRaceStatus.inRace);
+            // Send update to GUI
+            UpdateParticipantStatusInGFX(iTags[msg.UpdateParticipantRaceStatus.handleDB]);
+          }
+          break;
+        }
+
+
+
         default:
           ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
           break;

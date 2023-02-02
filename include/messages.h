@@ -22,18 +22,30 @@ struct msg_AddParticipantResponse
   bool wasOK;
 };
 
+struct msg_UpdateParticipantRaceStatus
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  uint32_t handleDB;
+  uint32_t handleGFX;
+  bool inRace;
+};
+
 union msg_RaceDB
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
+  msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
 };
 
-#define MSG_ITAG_DETECTED   0x1000 //msg_iTagDetected queueRaceDB
-#define MSG_ITAG_CONFIG     0x1001 //msg_iTagDetected queueBTConnect
-#define MSG_ITAG_CONFIGURED 0x1002 //msg_iTagDetected queueRaceDB
+#define MSG_ITAG_CONFIG     0x1000 //msg_iTagDetected queueBTConnect
 
-#define MSG_ITAG_GFX_ADD_USER_RESPONSE 0x1003 //msg_AddParticipantResponse queueRaceDB
+
+#define MSG_ITAG_DETECTED   0x2000 //msg_iTagDetected queueRaceDB
+#define MSG_ITAG_CONFIGURED 0x2001 //msg_iTagDetected queueRaceDB
+
+#define MSG_ITAG_GFX_ADD_USER_RESPONSE 0x2002 //msg_AddParticipantResponse queueRaceDB
+#define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2003 //msg_UpdateParticipantRaceStatus queueRaceDB
 
 struct msg_AddParticipant
 {
@@ -64,7 +76,6 @@ struct msg_UpdateParticipantStatus
   bool inRace;
 };
 
-
 union msg_GFX
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
@@ -74,9 +85,9 @@ union msg_GFX
 };
 
 
-#define MSG_GFX_ADD_USER_TO_RACE 0x1004 //msg_AddParticipant queueGFX
-#define MSG_GFX_UPDATE_USER 0x1005 //msg_UpdateParticipant queueGFX
-#define MSG_GFX_UPDATE_STATUS_USER 0x1006 //msg_UpdateParticipantStatus queueGFX
+#define MSG_GFX_ADD_USER_TO_RACE 0x3004 //msg_AddParticipant queueGFX
+#define MSG_GFX_UPDATE_USER 0x3005 //msg_UpdateParticipant queueGFX
+#define MSG_GFX_UPDATE_STATUS_USER 0x3006 //msg_UpdateParticipantStatus queueGFX
 
 extern QueueHandle_t queueRaceDB;  // msg_RaceDB Task/Database manager is blocked reading from this
 extern QueueHandle_t queueBTConnect;     // msg_iTagDetected Bluetooth task is blocked reading from this
