@@ -37,16 +37,16 @@ uint32_t raceStartIn = 0;
 bool raceOngoing = false;
 
 
-QueueHandle_t queueiTagDetected;
+QueueHandle_t queueRaceDB;
 QueueHandle_t queueBTConnect;
 QueueHandle_t queueGFX; 
 
 void initMessageQueues()
 {
   // Well we have a lot of memory, so why not allow it, e.g. ITAG_COUNT  :)
-  queueiTagDetected = xQueueCreate(ITAG_COUNT, sizeof(msg_iTagDetected));  // ITAG_COUNT x msg_iTagDetected 
-  if (queueiTagDetected == 0){
-    ESP_LOGE(TAG,"Failed to create queueiTagDetected = %p\n", queueiTagDetected);
+  queueRaceDB = xQueueCreate(ITAG_COUNT, sizeof(msg_RaceDB));  // ITAG_COUNT x msg_RaceDB  
+  if (queueRaceDB == 0){
+    ESP_LOGE(TAG,"Failed to create queueRaceDB = %p\n", queueRaceDB);
     // TODO Something more clever here?
   }
 
@@ -58,7 +58,7 @@ void initMessageQueues()
   }
 
   // lets just make the queue big enough for all (it should work to make it smaller)
-  queueGFX = xQueueCreate(ITAG_COUNT, sizeof(msg_Participant));  // ITAG_COUNT x msg_iTagDetected
+  queueGFX = xQueueCreate(ITAG_COUNT, sizeof(msg_GFX));  // ITAG_COUNT x msg_GFX
   if (queueGFX == 0){
     ESP_LOGE(TAG,"Failed to create queueGFX = %p\n", queueGFX);
     // TODO Something more clever here?

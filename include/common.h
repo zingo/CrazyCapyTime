@@ -3,15 +3,16 @@
 #include <Arduino.h>
 #include <ESP32Time.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "esp_log.h"
 
 extern ESP32Time rtc;
 
-#define RACE_DISTANCE_TOTAL (42195/6*7)
+#define RACE_LAPS 6
+#define RACE_DISTANCE_TOTAL (42195/6*RACE_LAPS)
 #define RACE_DISTANCE_LAP (42195/6)
 //#define RACE_DISTANCE_LAP (400)
-#define RACE_LAPS 7
 
 #define PARTICIPANT_NAME_LENGTH 10
 

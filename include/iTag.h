@@ -45,7 +45,7 @@ class lapData {
 
 class participantData {
   public:
-    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
+    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { handleGFX_isValid = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
     std::string getName() {return name;}
     void setName(std::string inName) {name = inName;}
     uint32_t getLapCount() {return laps;}
@@ -86,13 +86,26 @@ class participantData {
     bool getInRace() {return inRace;}
     void setInRace(bool val) {inRace = val;}
 
-    void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
-      lapsChart = chart;
-      lapsSeries = series;
-      updateChart();
+
+
+    bool isHandleGFXValid() { return handleGFX_isValid;}
+
+    uint32_t getHandleGFX() { return handleGFX;}
+
+
+    void setHandleGFX(uint32_t inHandleGFX, bool valid) {
+      handleGFX = inHandleGFX;
+      handleGFX_isValid = valid;
     }
+
+    //void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
+      //lapsChart = chart;
+      //lapsSeries = series;
+      //updateChart();
+    //}
     void updateChart()
     {
+      /*
       for(int lap=0;lap<=DRAW_MAX_LAPS_IN_CHART;lap++)
       {
         if (lap<=laps) {
@@ -110,19 +123,20 @@ class participantData {
           lapsSeries->y_points[2*lap+1] = LV_CHART_POINT_NONE;
         }
       }
-      lv_chart_refresh(lapsChart); /*Required after direct set*/
+      lv_chart_refresh(lapsChart); //Required after direct set
+      */
     }  
   private:
     std::string name;     // Participant name
     uint32_t laps;
     uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
     std::vector<lapData> lapsData;
+    uint32_t handleGFX;
+    bool handleGFX_isValid;
     bool inRace;
     //GUI stuff
-    lv_obj_t * lapsChart;
-    lv_chart_series_t * lapsSeries;
-//TODO?    bool updated; // if true update GUI
- 
+    //lv_obj_t * lapsChart;
+    //lv_chart_series_t * lapsSeries; 
 };
 
 
@@ -140,24 +154,13 @@ class iTag {
     iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
     void reset();
 
-    void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
+    //void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
     void updateGUI(void);
     void updateGUI_locked(void);
     int getRSSI() {return RSSI;}
     void setRSSI(int val) {RSSI=val;}
   private:
     int RSSI;
-
-    // GUI LVGL object used when updating
-    lv_obj_t * ledColor0;
-    lv_obj_t * ledColor1;
-    lv_obj_t * labelName;
-    lv_obj_t * labelDist;
-    lv_obj_t * labelLaps;
-    lv_obj_t * labelTime;
-    lv_obj_t * labelConnectionStatus;
-    //lv_obj_t * labelBatterySymbol;
-    lv_obj_t * labelBattery;
 };
 
 

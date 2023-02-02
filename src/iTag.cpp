@@ -6,7 +6,7 @@
 
 */
 #include <mutex>
-
+#include <string>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include "common.h"
@@ -26,28 +26,93 @@ void refreshTagGUI()
   updateTagsNow = true;
 }
 
-bool AddUserToRace(participantData &participant,uint32_t col0, uint32_t col1)
+bool AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
 {
-  msg_Participant msgParticipant;
-  msgParticipant.msgType = MSG_GFX_ADD_USER_TO_RACE;
-  msgParticipant.color0 = col0;
-  msgParticipant.color1 = col1;
+  msg_GFX msg;
+  msg.Add.header.msgType = MSG_GFX_ADD_USER_TO_RACE;
+  msg.Add.handleDB = handleDB;
+  msg.Add.color0 = col0;
+  msg.Add.color1 = col1;
   std::string name = participant.getName();
-  size_t len = name.copy(msgParticipant.name, PARTICIPANT_NAME_LENGTH);
-  msgParticipant.name[len] = '\0';
-  msgParticipant.distance = 0;
-  msgParticipant.laps = participant.getLapCount();
-  msgParticipant.lastlaptime = participant.getCurrentLapStart();
-  
+  size_t len = name.copy(msg.Add.name, PARTICIPANT_NAME_LENGTH);
+  msg.Add.name[len] = '\0';
+  msg.Add.inRace = participant.getInRace();  
 
-  ESP_LOGI(TAG,"Add User: MSG:0x%x color:(0x%x,0x%x)  Name:%s dist:%d laps:%d lastlaptime:%d",
-               msgParticipant.msgType, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.distance,msgParticipant.laps, msgParticipant.lastlaptime);
+  ESP_LOGI(TAG,"Add User: MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+               msg.Add.header.msgType, msg.Add.handleDB, msg.Add.color0, msg.Add.color1, msg.Add.name, msg.Add.inRace);
 
-  BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msgParticipant, (TickType_t)2000); //Don't wait if queue is full, just retry next time we scan the tag
+  BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ? if not participant.isHandleGFXValid() sometimes later
   return xReturned;
 }
 
-#include <string>
+bool UpdateParticipantStatusInGFX(iTag &tag)
+{
+  if(tag.participant.isHandleGFXValid())
+  {
+    msg_GFX msg;
+    msg.UpdateStatus.header.msgType = MSG_GFX_UPDATE_STATUS_USER;
+    msg.UpdateStatus.handleGFX = tag.participant.getHandleGFX();
+
+    if (tag.active)
+    {
+      if (tag.connected) {
+        if (tag.participant.getTimeSinceLastSeen() < 20) {
+          msg.UpdateStatus.connectionStatus = tag.getRSSI();
+        }
+        else {
+          msg.UpdateStatus.connectionStatus = 1;
+        }
+      }
+      else {
+          msg.UpdateStatus.connectionStatus = 0;
+      }
+    }
+    else {
+          msg.UpdateStatus.connectionStatus = 0;
+    }
+
+    msg.UpdateStatus.connectionStatus = tag.getRSSI();
+    msg.UpdateStatus.battery = tag.battery;
+    msg.UpdateStatus.inRace = tag.participant.getInRace();
+
+    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+                msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+
+    BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
+    return xReturned;
+  }
+  else {
+  // TODO ERROR maybe redo AddParticipantToGFX()
+    return false;
+  }
+  return true;
+}
+
+
+bool UpdateParticipantInGFX(participantData &participant)
+{
+  if(participant.isHandleGFXValid())
+  {
+    msg_GFX msg;
+    msg.Update.header.msgType = MSG_GFX_UPDATE_USER;
+    msg.Update.handleGFX = participant.getHandleGFX();
+
+    msg.Update.distance = participant.getLapCount()* RACE_DISTANCE_LAP;
+    msg.Update.laps = participant.getLapCount();
+    msg.Update.lastlaptime = participant.getCurrentLapStart();
+
+    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d",
+                msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime);
+
+    BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
+    return xReturned;
+  }
+  else {
+  // TODO ERROR maybe redo AddParticipantToGFX()
+    return false;
+  }
+  return true;
+}
 
 iTag::iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1)
 {
@@ -78,20 +143,6 @@ void iTag::reset()
   }
 }
 
-void iTag::saveGUIObjects(lv_obj_t * ledCol0, lv_obj_t * ledCol1, lv_obj_t * labelNam, lv_obj_t * labelDistance, lv_obj_t * labelLap, lv_obj_t * labelTim,lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat)
-{
-  std::lock_guard<std::mutex> lck(mutexTags);
-  ledColor0 = ledCol0;
-  ledColor1 = ledCol1;
-  labelName = labelNam;
-  labelDist = labelDistance;
-  labelLaps = labelLap;
-  labelTime = labelTim;
-  labelConnectionStatus = labelConnStatus;
-  //labelBatterySymbol = labelBatterySym;
-  labelBattery = labelBat;
-}
-
 void iTag::updateGUI(void)
 {
   std::lock_guard<std::mutex> lck(mutexTags);
@@ -100,7 +151,8 @@ void iTag::updateGUI(void)
 
 void iTag::updateGUI_locked(void)
 {
-
+UpdateParticipantInGFX(this->participant);
+#if 0
   lv_obj_set_style_bg_color(ledColor0, lv_color_hex(color0),0);
   lv_obj_set_style_bg_color(ledColor1, lv_color_hex(color1),0);
 
@@ -174,6 +226,7 @@ void iTag::updateGUI_locked(void)
       lv_label_set_text(labelBattery, "");
     }
   }
+#endif
 }
 
 
@@ -187,24 +240,24 @@ void iTag::updateGUI_locked(void)
 
 //TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
+  iTag("ff:ff:10:82:ef:1e", "Green",   false,    ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN),     //Light green BT4
+  iTag("ff:ff:10:7e:be:67", "Orange1", true,        ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
   iTag("ff:ff:10:7d:96:2a", "White1",  true,       ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7d:d2:08", "Blue1",   true,     ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
   iTag("ff:ff:00:00:00:00", "White2",  true,     ITAG_COLOR_WHITE,   ITAG_COLOR_BLACK),
   iTag("ff:ff:00:00:00:00", "White3",  false,    ITAG_COLOR_WHITE,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:6a:79:b4", "Pink1",   false,      ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
   iTag("ff:ff:00:00:00:00", "Pink2",   true,   ITAG_COLOR_PINK,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:00:00:00:00", "Pink3",   false,   ITAG_COLOR_PINK,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7e:be:67", "Orange1", true,        ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE),
   iTag("ff:ff:00:00:00:00", "Orange2", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_WHITE),
   iTag("ff:ff:00:00:00:00", "Orange3", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_PINK),
   iTag("ff:ff:00:00:00:00", "Orange4", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7d:d2:08", "Blue1",   true,     ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),
   iTag("ff:ff:00:00:00:00", "Blue2",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE),
   iTag("ff:ff:00:00:00:00", "Blue3",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_PINK),
   iTag("ff:ff:00:00:00:00", "Blue4",   true,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_BLACK),
   iTag("ff:ff:00:00:00:00", "Black1",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:00:00:00:00", "Black2",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Black3",  true,    ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:82:ef:1e", "Green",   false,    ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
+  iTag("ff:ff:00:00:00:00", "Black3",  true,    ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE)
 };
 
 uint32_t lastScanTime = 0;
@@ -251,10 +304,13 @@ void updateiTagStatus()
       }
       iTags[j].updated = true;
     }
+
+// TODO send update msg to GUI
+
     if (iTags[j].updated) {
       iTags[j].updated = false;
       iTags[j].updateGUI_locked(); //TODO don't update all, only what is needed
-      iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
+    //  iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
     }
 
    // if(iTags[j].active) {
@@ -450,25 +506,24 @@ void vTaskRaceDB( void *pvParameters )
   configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
   // Add all Participants in race to race page
-  for(int i=0; i<ITAG_COUNT; i++)
+  for(int handleDB=0; handleDB<ITAG_COUNT; handleDB++)
   {
-    if(iTags[i].participant.getInRace()) {
-      // Add Participand to Race page
-      AddUserToRace(iTags[i].participant,iTags[i].color0,iTags[i].color1);
-    }
+    // Add Participand to GUI tabs
+    // Use index into iTags as the "secret" handleDB
+    AddParticipantToGFX(handleDB, iTags[handleDB].participant,iTags[handleDB].color0,iTags[handleDB].color1); 
   }
 
   for( ;; )
   {
-    msg_iTagDetected msg;
-    if( xQueueReceive(queueiTagDetected, &(msg), (TickType_t)portMAX_DELAY))
+    msg_RaceDB msg;
+    if( xQueueReceive(queueRaceDB, &(msg), (TickType_t)portMAX_DELAY) == pdPASS)
     {
-      switch(msg.msgType) {
+      switch(msg.header.msgType) {
         case MSG_ITAG_DETECTED:
         {
           //ESP_LOGI(TAG,"Received: MSG_ITAG_DETECTED");
           // iTag detected
-          std::string bleAddress = convertBLEAddressToString(msg.address);
+          std::string bleAddress = convertBLEAddressToString(msg.iTag.address);
           bool found = false;
           for(int j=0; j<ITAG_COUNT; j++)
           {
@@ -478,10 +533,10 @@ void vTaskRaceDB( void *pvParameters )
               //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
               //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
 
-              time_t newLapTime = msg.time;
-              iTags[j].setRSSI(msg.RSSI);
-              if (msg.battery != INT8_MIN) {
-                iTags[j].battery = msg.battery;
+              time_t newLapTime = msg.iTag.time;
+              iTags[j].setRSSI(msg.iTag.RSSI);
+              if (msg.iTag.battery != INT8_MIN) {
+                iTags[j].battery = msg.iTag.battery;
               }
 
               iTags[j].connected = true;
@@ -504,11 +559,14 @@ void vTaskRaceDB( void *pvParameters )
               }
 
               iTags[j].updated = true; // Make it redraw when GUI loop looks at it
-
+              UpdateParticipantStatusInGFX(iTags[j]);
+              
               if (!iTags[j].active) {
                 ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-                msg.msgType = MSG_ITAG_CONFIG;
-                BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)0); //Don't wait if queue is full, just retry next time we scan the tag
+                
+                // TODO we should not rely on this struct being the same and it should probably be a new struct
+                msg.iTag.header.msgType = MSG_ITAG_CONFIG;
+                BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //Don't wait if queue is full, just retry next time we scan the tag
                 if (xReturned)
                 {
                   //Only mark active if it was possible to put in on the queue, if not it will just retry next time we scan the tag
@@ -528,25 +586,35 @@ void vTaskRaceDB( void *pvParameters )
           ESP_LOGI(TAG,"Received: MSG_ITAG_CONFIGURED");
 
           // iTag active
-          std::string bleAddress = convertBLEAddressToString(msg.address);
+          std::string bleAddress = convertBLEAddressToString(msg.iTag.address);
           for(int j=0; j<ITAG_COUNT; j++)
           {
             std::lock_guard<std::mutex> lck(mutexTags);
             // TODO send index? so we don't need the string compare here???
             if(bleAddress == iTags[j].address) {
-                            time_t newLapTime = msg.time;
-              iTags[j].setRSSI(msg.RSSI);
-              if (msg.battery != INT8_MIN) {
-                iTags[j].battery = msg.battery;
+                            time_t newLapTime = msg.iTag.time;
+              iTags[j].setRSSI(msg.iTag.RSSI);
+              if (msg.iTag.battery != INT8_MIN) {
+                iTags[j].battery = msg.iTag.battery;
               }
               iTags[j].participant.setTimeSinceLastSeen(0);
               iTags[j].active = true;
+              UpdateParticipantStatusInGFX(iTags[j]);
             }
           }          
           break;
         }
+        case MSG_ITAG_GFX_ADD_USER_RESPONSE:
+        {
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+          //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
+          iTags[msg.AddedToGFX.handleDB].participant.setHandleGFX(msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d DONE", 
+          //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
+          break;
+        }
         default:
-          ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg.msgType);
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
           break;
       }
     }
@@ -576,6 +644,9 @@ void initiTAGs()
 
 }
 
+
+
+// TODO remove this at least from main thread
 void loopHandlTAGs()
 {
   // Show connection in log

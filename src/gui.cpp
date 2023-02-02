@@ -27,6 +27,7 @@
  * Optional: Show CPU usage and FPS count
  * #define LV_USE_PERF_MONITOR 1
  ******************************************************************************/
+#include <string>
 #include "common.h"
 #include <lvgl.h>
 /*******************************************************************************
@@ -81,7 +82,9 @@ static lv_style_t style_iTag0;  //iTag circle
 static lv_style_t style_iTag1;  //iTag rubber circle
 
 static lv_obj_t *labelRaceTime;
+
 static lv_obj_t *tabRace;
+static lv_obj_t *tabParticipants;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
 static const lv_font_t * fontTag = LV_FONT_DEFAULT;
@@ -143,8 +146,8 @@ static void btnTagAdd_event_cb(lv_event_t * e)
     lv_event_code_t code = lv_event_get_code(e);
     //lv_obj_t * btn = lv_event_get_target(e);
     if(code == LV_EVENT_SHORT_CLICKED) {
-      iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
-      tag->participant.nextLap();
+      //iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
+      //tag->participant.nextLap();
     }
 }
 
@@ -153,8 +156,8 @@ static void btnTagSub_event_cb(lv_event_t * e)
     lv_event_code_t code = lv_event_get_code(e);
     //lv_obj_t * btn = lv_event_get_target(e);
     if(code == LV_EVENT_SHORT_CLICKED) {
-      iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
-      tag->participant.prevLap();
+      //iTag *tag = static_cast<iTag *>(lv_event_get_user_data(e));
+      //tag->participant.prevLap();
     }
 }
 
@@ -188,10 +191,10 @@ class guiParticipant {
     lv_obj_t * labelRaceConnectionStatus;
 };
 
-guiParticipant guiParticipants[ITAG_COUNT];
-uint32_t nextFreeParicipandHandle=0;  // We use the index into guiParticipants as a handle wi give to others like RaceDB
+guiParticipant guiParticipants[ITAG_COUNT]; // TODO Could be dynamic
+uint32_t handleGFX = 0;  // We use the index into guiParticipants as a handle we will give to others like RaceDB
 
-void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
+bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uint32_t handleGFX)
 {
   // index is index into iTag database
   lv_obj_t * panel1 = lv_obj_create(parent);
@@ -209,32 +212,38 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_t * ledColor1 = lv_obj_create(panel1);
   lv_obj_add_style(ledColor1, &style_iTag1, 0);
   lv_obj_remove_style(ledColor1, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor1, lv_color_hex(msgParticipant.color1),0);
   lv_obj_set_grid_cell(ledColor1, LV_GRID_ALIGN_CENTER, x_pos, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * ledColor0 = lv_obj_create(panel1);
   lv_obj_add_style(ledColor0, &style_iTag0, 0);
   lv_obj_remove_style(ledColor0, NULL, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(ledColor0, lv_color_hex(msgParticipant.color0),0);
   lv_obj_set_grid_cell(ledColor0, LV_GRID_ALIGN_CENTER, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelName = lv_label_create(panel1);
-  lv_label_set_text(labelName, "");
+  //std::string nameParticipant = std::string(participant.name);
+  lv_label_set_text(labelName, msgParticipant.name);
   lv_obj_add_style(labelName, &styleTagText, 0);
   lv_label_set_long_mode(labelName, LV_LABEL_LONG_CLIP);
   lv_obj_set_grid_cell(labelName, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelDist = lv_label_create(panel1);
   lv_obj_add_style(labelDist, &styleTagText, 0);
-  lv_label_set_text(labelDist, "00.000");
+  lv_label_set_text_fmt(labelDist, "%4.3f km",(0*RACE_DISTANCE_LAP)/1000.0);
   lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelLaps = lv_label_create(panel1);
-  lv_label_set_text(labelLaps, "Laps");
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,RACE_LAPS);
   lv_obj_add_style(labelLaps, &styleTagText, 0);
   lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelTime = lv_label_create(panel1);
   lv_obj_add_style(labelTime, &styleTagText, 0);
-  lv_label_set_text(labelTime, "00:00:00");
+  struct tm timeinfo;
+  time_t tt = 0;//msgParticipant.lastlaptime;
+  localtime_r(&tt, &timeinfo);
+  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
   lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
@@ -257,7 +266,7 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
   lv_obj_t *label;
   btn = lv_btn_create(panel1); 
   lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, &iTags[index]);
+  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(msgParticipant.handleDB));
 
   label = lv_label_create(btn);
   lv_label_set_text(label, "-");
@@ -268,7 +277,7 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 
   btn = lv_btn_create(panel1); 
   lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, &iTags[index]);
+  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(msgParticipant.handleDB));
 
   label = lv_label_create(btn);
   lv_label_set_text(label, "+");
@@ -277,26 +286,22 @@ void createGUIRunnerTag(lv_obj_t * parent, uint32_t index)
 
   lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-
-    //lv_obj_t * log_out_btn = lv_btn_create(panel1);
-    //lv_obj_set_height(log_out_btn, LV_SIZE_CONTENT);
-    //lv_obj_t * label = lv_label_create(log_out_btn);
-    //lv_label_set_text(label, "Info");
-    //lv_obj_center(label);
-    //lv_obj_set_grid_cell(log_out_btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-
-    iTags[index].saveGUIObjects(ledColor0, ledColor1, labelName, labelDist, labelLaps, labelTime, labelConnectionStatus, /* labelBatterySymbol,*/ labelBattery);
-    iTags[index].updateGUI();
+  // All well so far, lets update the internal struct with the info.
+  guiParticipants[handleGFX].ledColor0 = ledColor0;
+  guiParticipants[handleGFX].ledColor1 = ledColor1;
+  guiParticipants[handleGFX].labelName = labelName;
+  guiParticipants[handleGFX].labelDist = labelDist;
+  guiParticipants[handleGFX].labelLaps = labelLaps;
+  guiParticipants[handleGFX].labelTime = labelTime;
+  guiParticipants[handleGFX].labelConnectionStatus = labelConnectionStatus;
+  guiParticipants[handleGFX].labelBattery = labelBattery;
+  return true;
 }
 
 
-bool gfxAddUserToRace(msg_Participant &msgParticipant)
+bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uint32_t handleGFX)
 {
-
-  ESP_LOGI(TAG,"Add User: MSG:0x%x color:(0x%x,0x%x)  Name:%s dist:%d laps:%d lastlaptime:%d",
-               msgParticipant.msgType, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.distance,msgParticipant.laps, msgParticipant.lastlaptime);
-
-  lv_obj_t * panel1 = lv_obj_create(tabRace);
+  lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
   lv_obj_set_style_pad_all(panel1, 13,0); 
 
@@ -330,12 +335,12 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_obj_t * labelDist = lv_label_create(panel1);
   lv_obj_add_style(labelDist, &styleTagText, 0);
 //  lv_label_set_text(labelDist, "00.000");
-  lv_label_set_text_fmt(labelDist, "%4.3f km",(msgParticipant.laps*RACE_DISTANCE_LAP)/1000.0);
+  lv_label_set_text_fmt(labelDist, "%4.3f km",(0*RACE_DISTANCE_LAP)/1000.0);
   lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelLaps = lv_label_create(panel1);
   //lv_label_set_text(labelLaps, "Laps");
-  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",msgParticipant.laps,RACE_LAPS);
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,RACE_LAPS);
   lv_obj_add_style(labelLaps, &styleTagText, 0);
   lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
@@ -343,7 +348,7 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_obj_add_style(labelTime, &styleTagText, 0);
 //  lv_label_set_text(labelTime, "00:00:00");
   struct tm timeinfo;
-  time_t tt = msgParticipant.lastlaptime;
+  time_t tt = 0;//msgParticipant.lastlaptime;
   localtime_r(&tt, &timeinfo);
   lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
   lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
@@ -353,24 +358,21 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
   lv_obj_set_grid_cell(labelConnectionStatus, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-  // All well so fare, lets update the internal struct with the info.
-  guiParticipants[nextFreeParicipandHandle].inRace = true;
-  guiParticipants[nextFreeParicipandHandle].ledRaceColor0 = ledColor0;
-  guiParticipants[nextFreeParicipandHandle].ledRaceColor1 = ledColor1;
-  guiParticipants[nextFreeParicipandHandle].labelRaceName = labelName;
-  guiParticipants[nextFreeParicipandHandle].labelRaceDist = labelDist;
-  guiParticipants[nextFreeParicipandHandle].labelRaceLaps = labelLaps;
-  guiParticipants[nextFreeParicipandHandle].labelRaceTime = labelTime;
-  guiParticipants[nextFreeParicipandHandle].labelRaceConnectionStatus = labelConnectionStatus;
-  // TODO reply back with handle
-  nextFreeParicipandHandle++;
+  // All well so far, lets update the internal struct with the info.
+  guiParticipants[handleGFX].ledRaceColor0 = ledColor0;
+  guiParticipants[handleGFX].ledRaceColor1 = ledColor1;
+  guiParticipants[handleGFX].labelRaceName = labelName;
+  guiParticipants[handleGFX].labelRaceDist = labelDist;
+  guiParticipants[handleGFX].labelRaceLaps = labelLaps;
+  guiParticipants[handleGFX].labelRaceTime = labelTime;
+  guiParticipants[handleGFX].labelRaceConnectionStatus = labelConnectionStatus;
 
 /*
   lv_obj_t * btn;
   lv_obj_t *label;
   btn = lv_btn_create(panel1); 
-  lv_obj_align_to(btn, tabRace, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, &iTags[index]);
+  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, msgParticipant.handleDB);
   label = lv_label_create(btn);
   lv_label_set_text(label, "-");
   lv_obj_center(label);
@@ -378,8 +380,8 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   btn = lv_btn_create(panel1); 
-  lv_obj_align_to(btn, tabRace, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, &iTags[index]);
+  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, msgParticipant.handleDB);
   label = lv_label_create(btn);
   lv_label_set_text(label, "+");
   lv_obj_center(label);
@@ -389,14 +391,87 @@ bool gfxAddUserToRace(msg_Participant &msgParticipant)
   return true;  //TODO check errors
 }
 
+void gfxUpdateParticipant(msg_UpdateParticipant msg)
+{
+  uint32_t index = msg.handleGFX;
+  lv_label_set_text_fmt(guiParticipants[index].labelDist, "%4.3f km",msg.distance);
+  lv_label_set_text_fmt(guiParticipants[index].labelLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+  struct tm timeinfo;
+  time_t tt = msg.lastlaptime;
+  localtime_r(&tt, &timeinfo);
+  lv_label_set_text_fmt(guiParticipants[index].labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+  if (guiParticipants[index].inRace) {
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceDist, "%4.3f km",msg.distance);
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+  }
+}
+
+void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
+{
+  // TODO change and update inRace
+
+  uint32_t index = msg.handleGFX;
+  std::string conn;
+  if (msg.connectionStatus == 1)
+  {
+    conn = std::string(LV_SYMBOL_EYE_CLOSE);
+  }
+  else if (msg.connectionStatus == 0)
+  {
+    conn = std::string("");
+
+  } else {
+    conn = std::string(LV_SYMBOL_EYE_OPEN);
+  }
+  
+  lv_label_set_text(guiParticipants[index].labelConnectionStatus, conn.c_str());
+  if(msg.battery >= 0 && msg.battery <=100) {
+    lv_label_set_text_fmt(guiParticipants[index].labelBattery, "%3d%%",msg.battery);
+  }
+
+  if (guiParticipants[index].inRace) {
+    lv_label_set_text(guiParticipants[index].labelRaceConnectionStatus, conn.c_str());
+  }
+}
+
+
+// return used handleGFX or negative value in case of error
+uint32_t gfxAddUserToGUI(msg_AddParticipant &msgParticipant)
+{
+  uint32_t ret_handle = handleGFX;
+
+  if(handleGFX >= ITAG_COUNT) {
+    ESP_LOGE(TAG," ERROR to may user added handleGFX:%d >= ITAG_COUNT:%d for msg_AddParticipant MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d  ---> Do nothing",handleGFX, ITAG_COUNT,
+               msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
+    return UINT32_MAX; // indicates error
+  }
+//  else {
+//    ESP_LOGI(TAG," handleGFX:%d < ITAG_COUNT:%d for msg_AddParticipant MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d  ---> Add",handleGFX, ITAG_COUNT,
+//               msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
+//  }
+  gfxAddUserToParticipants(tabParticipants, msgParticipant, handleGFX);
+  if (msgParticipant.inRace) {
+    guiParticipants[handleGFX].inRace = true;
+    gfxAddUserToRace(tabRace, msgParticipant, handleGFX);
+  }
+  handleGFX++;
+  if(handleGFX >= ITAG_COUNT) {
+    ESP_LOGI(TAG,"Added all Users handleGFX:%d from MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d --------- COME ON LETS PARTY!!!!!!!!!!!!!!!!!!", handleGFX,
+               msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
+
+  }
+
+  // All Ok return used handleGFX
+  return ret_handle;
+}
 
 static void createGUITabRace(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_column(parent,5,0);
   lv_obj_set_style_pad_row(parent,5,0);
-  lv_obj_set_style_pad_all(parent, 5,0); 
-
+  lv_obj_set_style_pad_all(parent, 5,0);
 }
 
 static void createGUITabParticipant(lv_obj_t * parent)
@@ -404,12 +479,15 @@ static void createGUITabParticipant(lv_obj_t * parent)
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_column(parent,5,0);
   lv_obj_set_style_pad_row(parent,5,0);
-  lv_obj_set_style_pad_all(parent, 5,0); 
+  lv_obj_set_style_pad_all(parent, 5,0);
+}
 
-  for(int i=0; i<ITAG_COUNT; i++)
-  {
-    createGUIRunnerTag(parent, i);
-  }
+static void createGUITabRaceExtra(lv_obj_t * parent)
+{
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,5,0);
+  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_all(parent, 5,0);
 
   lv_obj_t * chart;
   chart = lv_chart_create(parent);
@@ -429,11 +507,11 @@ static void createGUITabParticipant(lv_obj_t * parent)
   lv_chart_set_point_count(chart, (DRAW_MAX_LAPS_IN_CHART*2*ITAG_COUNT));
 
 
-  for(int i=0; i<ITAG_COUNT; i++)
-  {
-    lv_chart_series_t * series = lv_chart_add_series(chart, lv_color_hex(iTags[i].color0), LV_CHART_AXIS_PRIMARY_Y);
-    iTags[i].participant.saveGUIObjects(chart, series);
-  }
+  //TODO for(int i=0; i<ITAG_COUNT; i++)
+  //{
+  //  lv_chart_series_t * series = lv_chart_add_series(chart, lv_color_hex(iTags[i].color0), LV_CHART_AXIS_PRIMARY_Y);
+  //  iTags[i].participant.saveGUIObjects(chart, series);
+  //}
 
   lv_obj_t * btnLoad = lv_btn_create(parent); 
   //lv_obj_align_to(btnLoad, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -568,11 +646,12 @@ void createGUI(void)
 */
 
   tabRace = lv_tabview_add_tab(tv, "Race"); 
-  lv_obj_t * t2 = lv_tabview_add_tab(tv, "Participants");
-  //lv_obj_t * t3 = lv_tabview_add_tab(tv, "Setup");
+  lv_obj_t * t3 = lv_tabview_add_tab(tv, LV_SYMBOL_IMAGE );
+  tabParticipants = lv_tabview_add_tab(tv, LV_SYMBOL_LIST );
 
   createGUITabRace(tabRace);
-  createGUITabParticipant(t2);
+  createGUITabRaceExtra(t3);
+  createGUITabParticipant(tabParticipants);
 }
 
 // Display callback to flush the buffer to screen
@@ -671,7 +750,6 @@ void initLVGL()
     lv_indev_drv_register(&indev_drv);
 
     createGUI();
-
     ESP_LOGI(TAG, "Setup GFX done");
   }
 }
@@ -679,18 +757,58 @@ void initLVGL()
 void loopHandlLVGL()
 {
 
-  msg_Participant msg;
-  if( xQueueReceive(queueGFX, &(msg), (TickType_t)0))  // Don't block main loop just take a peek
+  msg_GFX msg;
+  while ( xQueueReceive(queueGFX, &(msg), (TickType_t)0) == pdPASS)  // Don't block main loop just take a peek
   {
-    switch(msg.msgType) {
+    switch(msg.header.msgType) {
+      case MSG_GFX_UPDATE_USER:
+      {
+        ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d",
+                msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime);
+        gfxUpdateParticipant(msg.Update);
+        // Done! No response on this msg
+        break;
+      }
+      case MSG_GFX_UPDATE_STATUS_USER:
+      {
+        ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+                      msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+        gfxUpdateParticipantStatus(msg.UpdateStatus);
+        break;
+      }
       case MSG_GFX_ADD_USER_TO_RACE:
       {
-        gfxAddUserToRace(msg);
+
+//  ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER_TO_RACE MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
+//               msg.Add.header.msgType, msg.Add.handleDB, msg.Add.color0, msg.Add.color1, msg.Add.name, msg.Add.inRace);
+
+        uint32_t handle = gfxAddUserToGUI(msg.Add);
+
+        msg_RaceDB msgResponse;
+        msgResponse.AddedToGFX.header.msgType = MSG_ITAG_GFX_ADD_USER_RESPONSE;
+        msgResponse.AddedToGFX.handleDB = msg.Add.handleDB;
+        msgResponse.AddedToGFX.handleGFX = handle;
+        if (handle != UINT32_MAX) {
+          msgResponse.AddedToGFX.wasOK = true;
+        }
+        else {
+          msgResponse.AddedToGFX.wasOK = false;
+        }
+
+ // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+ //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
+
+
+        BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
+        // TODO handle error? xReturned;
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d DONE", 
+  //             msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
+
         break;
       }
       default:
-        ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg.msgType);
-        break;
+        ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
+        //break;
     }
   }
 

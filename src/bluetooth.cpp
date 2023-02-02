@@ -175,22 +175,22 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     size_t isiTag = advertisedDevice->getName().find("iTAG");
     if (isiTag != std::string::npos && isiTag == 0) {
       //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
-      msg_iTagDetected msg;
-      msg.msgType = MSG_ITAG_DETECTED;
-      msg.time = rtc.getEpoch();
-      msg.address = static_cast<uint64_t>(advertisedDevice->getAddress());
+      msg_RaceDB msg;
+      msg.iTag.header.msgType = MSG_ITAG_DETECTED;
+      msg.iTag.time = rtc.getEpoch();
+      msg.iTag.address = static_cast<uint64_t>(advertisedDevice->getAddress());
       if (advertisedDevice->haveRSSI()) {
-        msg.RSSI = advertisedDevice->getRSSI();
+        msg.iTag.RSSI = advertisedDevice->getRSSI();
       }
       else {
-        msg.RSSI = INT8_MIN;
+        msg.iTag.RSSI = INT8_MIN;
       }
-      msg.battery = INT8_MIN;
-      BaseType_t xReturned = xQueueSend(queueiTagDetected, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
+      msg.iTag.battery = INT8_MIN;
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
       if (!xReturned)
       {
         ESP_LOGE(TAG,"ERROR iTAG detected queue is full: %s RETRY for 1s",String(advertisedDevice->toString().c_str()).c_str());
-        xReturned = xQueueSend(queueiTagDetected, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
+        xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
         if (!xReturned)
         {
           ESP_LOGE(TAG,"ERROR ERROR iTAG detected queue is still full: %s trow a way detected",String(advertisedDevice->toString().c_str()).c_str());
@@ -232,9 +232,9 @@ static void vTaskBTConnect( void *pvParameters )
   {
     ESP_LOGI(TAG,"Wait for BT Connect");
     msg_iTagDetected msg_iTag;
-    if( xQueueReceive(queueBTConnect, &(msg_iTag), (TickType_t)portMAX_DELAY))
+    if( xQueueReceive(queueBTConnect, &(msg_iTag), (TickType_t)portMAX_DELAY) == pdPASS)
     {
-      switch(msg_iTag.msgType) {
+      switch(msg_iTag.header.msgType) {
         case MSG_ITAG_CONFIG:
         {
           ESP_LOGI(TAG,"received: MSG_ITAG_CONFIG");
@@ -250,14 +250,19 @@ static void vTaskBTConnect( void *pvParameters )
           NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
 
           // Send responce/activate iTag
-          msg_iTag.msgType = MSG_ITAG_CONFIGURED;
+          msg_RaceDB msgReponse;
+          msgReponse.iTag.header.msgType = MSG_ITAG_CONFIGURED;
+          msgReponse.iTag.address = msg_iTag.address;
+          msgReponse.iTag.battery = msg_iTag.battery;
+          msgReponse.iTag.RSSI = msg_iTag.RSSI;
+          msgReponse.iTag.time = msg_iTag.time;
 
           ESP_LOGI(TAG,"send: MSG_ITAG_CONFIGURED");
-          BaseType_t xReturned = xQueueSend(queueiTagDetected, (void*)&msg_iTag, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
+          BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgReponse, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
           if (!xReturned)
           {
             ESP_LOGE(TAG,"ERROR iTAG detected/configured queue is full RETRY for 1s");
-            xReturned = xQueueSend(queueiTagDetected, (void*)&msg_iTag, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
+            xReturned = xQueueSend(queueRaceDB, (void*)&msgReponse, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
             if (!xReturned)
             {
             ESP_LOGE(TAG,"ERROR iTAG detected/configured queue is full IGNORE");
@@ -267,7 +272,7 @@ static void vTaskBTConnect( void *pvParameters )
         }
         break;
         default:
-          ESP_LOGE(TAG,"%s ERROR received bad msg: 0x%x",msg_iTag.msgType);
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg_iTag.header.msgType);
           break;
       }
     }
