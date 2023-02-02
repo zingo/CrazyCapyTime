@@ -305,7 +305,7 @@ bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uin
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
   lv_obj_set_style_pad_all(panel1, 13,0); 
 
-  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
 
   int x_pos = 0;
