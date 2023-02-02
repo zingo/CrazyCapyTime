@@ -52,14 +52,15 @@ struct msg_UpdateParticipant
   uint32_t distance;
   uint32_t laps;
   time_t lastlaptime;
+  int8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
 };
 
 struct msg_UpdateParticipantStatus
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   uint32_t handleGFX;
-  uint8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
-  uint8_t battery;
+  int8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
+  int8_t battery;
   bool inRace;
 };
 

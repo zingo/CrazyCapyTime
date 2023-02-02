@@ -230,7 +230,7 @@ bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgParticip
 
   lv_obj_t * labelDist = lv_label_create(panel1);
   lv_obj_add_style(labelDist, &styleTagText, 0);
-  lv_label_set_text_fmt(labelDist, "%4.3f km",(0*RACE_DISTANCE_LAP)/1000.0);
+  lv_label_set_text_fmt(labelDist, "   -.--- km");
   lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelLaps = lv_label_create(panel1);
@@ -335,7 +335,7 @@ bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uin
   lv_obj_t * labelDist = lv_label_create(panel1);
   lv_obj_add_style(labelDist, &styleTagText, 0);
 //  lv_label_set_text(labelDist, "00.000");
-  lv_label_set_text_fmt(labelDist, "%4.3f km",(0*RACE_DISTANCE_LAP)/1000.0);
+  lv_label_set_text_fmt(labelDist, "   -.--- km");
   lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_obj_t * labelLaps = lv_label_create(panel1);
@@ -394,17 +394,36 @@ bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uin
 void gfxUpdateParticipant(msg_UpdateParticipant msg)
 {
   uint32_t index = msg.handleGFX;
-  lv_label_set_text_fmt(guiParticipants[index].labelDist, "%4.3f km",msg.distance);
+  lv_label_set_text_fmt(guiParticipants[index].labelDist, "%4.3fkm",msg.distance/1000.0);
   lv_label_set_text_fmt(guiParticipants[index].labelLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
   struct tm timeinfo;
   time_t tt = msg.lastlaptime;
   localtime_r(&tt, &timeinfo);
   lv_label_set_text_fmt(guiParticipants[index].labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
-  if (guiParticipants[index].inRace) {
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceDist, "%4.3f km",msg.distance);
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+
+  std::string conn;
+  if (msg.connectionStatus == 1)
+  {
+    conn = std::string(LV_SYMBOL_EYE_CLOSE);
   }
+  else if (msg.connectionStatus == 0)
+  {
+    conn = std::string("");
+
+  } else {
+    conn = std::string(LV_SYMBOL_EYE_OPEN);
+  }
+  
+  lv_label_set_text(guiParticipants[index].labelConnectionStatus, conn.c_str());
+
+  if (guiParticipants[index].inRace) {
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceDist, "%04.3fkm",msg.distance/1000.0);
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceLaps, "(%02d/%02d)",msg.laps,RACE_LAPS),  (msg.laps*RACE_DISTANCE_LAP)/1000.0;
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceTime, "%03d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+    lv_label_set_text(guiParticipants[index].labelRaceConnectionStatus, conn.c_str());
+  }
+
+
 }
 
 void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
@@ -592,7 +611,8 @@ void createGUI(void)
   lv_style_set_radius(&style_iTag1, LV_RADIUS_CIRCLE);
   lv_style_set_size(&style_iTag1,30);
   lv_style_set_bg_color(&style_iTag1,lv_palette_main(LV_PALETTE_PINK));
-  lv_style_set_border_width(&style_iTag1, 0);
+  lv_style_set_border_width(&style_iTag1, 1);
+  lv_style_set_border_color(&style_iTag1, lv_color_hex(0xb0b0b0));
   //lv_style_remove_prop(&style_iTag1, LV_PART_SCROLLBAR); // TODO Figure out if this could be done from style
 
 #define TAB_POS (((LV_HOR_RES / 3)*2)-50)
@@ -763,25 +783,23 @@ void loopHandlLVGL()
     switch(msg.header.msgType) {
       case MSG_GFX_UPDATE_USER:
       {
-        ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d",
-                msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime);
+        //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d,connectionStatus:%d",
+        //        msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime, msg.Update.connectionStatus);
         gfxUpdateParticipant(msg.Update);
         // Done! No response on this msg
         break;
       }
       case MSG_GFX_UPDATE_STATUS_USER:
       {
-        ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-                      msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+        //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+        //              msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
         gfxUpdateParticipantStatus(msg.UpdateStatus);
         break;
       }
       case MSG_GFX_ADD_USER_TO_RACE:
       {
-
-//  ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER_TO_RACE MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
-//               msg.Add.header.msgType, msg.Add.handleDB, msg.Add.color0, msg.Add.color1, msg.Add.name, msg.Add.inRace);
-
+        //  ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER_TO_RACE MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
+        //               msg.Add.header.msgType, msg.Add.handleDB, msg.Add.color0, msg.Add.color1, msg.Add.name, msg.Add.inRace);
         uint32_t handle = gfxAddUserToGUI(msg.Add);
 
         msg_RaceDB msgResponse;
@@ -794,15 +812,10 @@ void loopHandlLVGL()
         else {
           msgResponse.AddedToGFX.wasOK = false;
         }
-
- // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
- //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
-
-
+        // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+        //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
         BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
         // TODO handle error? xReturned;
-  //ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d DONE", 
-  //             msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
 
         break;
       }

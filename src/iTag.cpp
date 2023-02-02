@@ -75,8 +75,8 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
     msg.UpdateStatus.battery = tag.battery;
     msg.UpdateStatus.inRace = tag.participant.getInRace();
 
-    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-                msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+    //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
     return xReturned;
@@ -89,7 +89,7 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
 }
 
 
-bool UpdateParticipantInGFX(participantData &participant)
+bool iTag::UpdateParticipantInGFX()
 {
   if(participant.isHandleGFXValid())
   {
@@ -101,8 +101,26 @@ bool UpdateParticipantInGFX(participantData &participant)
     msg.Update.laps = participant.getLapCount();
     msg.Update.lastlaptime = participant.getCurrentLapStart();
 
-    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d",
-                msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime);
+    if (active)
+    {
+      if (connected) {
+        if (participant.getTimeSinceLastSeen() < 20) {
+          msg.Update.connectionStatus = getRSSI();
+        }
+        else {
+          msg.Update.connectionStatus = 1;
+        }
+      }
+      else {
+          msg.Update.connectionStatus = 0;
+      }
+    }
+    else {
+          msg.Update.connectionStatus = 0;
+    }
+
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
+    //            msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime,msg.Update.connectionStatus);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
     return xReturned;
@@ -151,7 +169,7 @@ void iTag::updateGUI(void)
 
 void iTag::updateGUI_locked(void)
 {
-UpdateParticipantInGFX(this->participant);
+UpdateParticipantInGFX();
 #if 0
   lv_obj_set_style_bg_color(ledColor0, lv_color_hex(color0),0);
   lv_obj_set_style_bg_color(ledColor1, lv_color_hex(color1),0);
@@ -230,34 +248,34 @@ UpdateParticipantInGFX(this->participant);
 }
 
 
-#define ITAG_COLOR_WHITE    0xe0e0e0 // White
 #define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
-#define ITAG_COLOR_WHITE    0xe0e0e0 // White
+#define ITAG_COLOR_WHITE    0xFBFEF8 // Pearl White
 #define ITAG_COLOR_ORANGE   0xFA8128 // Tangerine
-#define ITAG_COLOR_DARKBLUE 0x0b0b45 // Navy blue
+#define ITAG_COLOR_DARKBLUE 0x1034a6 // Egyptian Blue,    0x0b0b45 // Navy blue
 #define ITAG_COLOR_BLACK    0x000000 // Black
 #define ITAG_COLOR_GREEN    0xAEF359 // Lime
 
 //TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:82:ef:1e", "Green",   false,    ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN),     //Light green BT4
-  iTag("ff:ff:10:7e:be:67", "Orange1", true,        ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
-  iTag("ff:ff:10:7d:96:2a", "White1",  true,       ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7d:d2:08", "Blue1",   true,     ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
-  iTag("ff:ff:00:00:00:00", "White2",  true,     ITAG_COLOR_WHITE,   ITAG_COLOR_BLACK),
-  iTag("ff:ff:00:00:00:00", "White3",  false,    ITAG_COLOR_WHITE,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:6a:79:b4", "Pink1",   false,      ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Pink2",   true,   ITAG_COLOR_PINK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:00:00:00:00", "Pink3",   false,   ITAG_COLOR_PINK,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:00:00:00:00", "Orange2", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Orange3", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Orange4", false,       ITAG_COLOR_ORANGE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:00:00:00:00", "Blue2",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_WHITE),
-  iTag("ff:ff:00:00:00:00", "Blue3",   false,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Blue4",   true,    ITAG_COLOR_DARKBLUE,ITAG_COLOR_BLACK),
-  iTag("ff:ff:00:00:00:00", "Black1",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:00:00:00:00", "Black2",  false,    ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:00:00:00:00", "Black3",  true,    ITAG_COLOR_BLACK,   ITAG_COLOR_WHITE)
+  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
+  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
+  iTag("ff:ff:10:7d:96:2a", "Markus",  true,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7f:7c:b7", "Johan",   true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:6a:79:b4", "Lupita",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:7e:82:46", "Johanna", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:74:90:fe", "Niklas",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7e:52:e0", "Tony",    true,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7f:7a:4e", "????",    true,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:80:73:95", "Orange1", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
+  iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7f:2f:ee", "Black1",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
+
 };
 
 uint32_t lastScanTime = 0;
@@ -380,33 +398,6 @@ void loadRace()
   String output = "";
   serializeJsonPretty(raceJson, output);
   ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
-
-
-  JsonArray tagArrayJson = raceJson.createNestedArray("tag");
-  for(int i=0; i<ITAG_COUNT; i++)
-  {
-    //JsonObject tagJson = raceJson.createNestedObject("tag");
-    JsonObject tagJson = tagArrayJson.createNestedObject();
-    tagJson["address"] = iTags[i].address;
-    tagJson["color0"] = iTags[i].color0;
-    tagJson["color1"] = iTags[i].color1;
-    tagJson["active"] = iTags[i].active;
-    JsonObject participantJson = tagJson.createNestedObject("participant"); 
-    participantJson["name"] = iTags[i].participant.getName();
-    participantJson["laps"] = iTags[i].participant.getLapCount();
-    participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
-    participantJson["inRace"] = iTags[i].participant.getInRace();
-
-    JsonArray lapArrayJson = tagJson.createNestedArray("lap");
-    for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
-    {
-      JsonObject lapJson = lapArrayJson.createNestedObject(); 
-      lapJson["StartTime"] = iTags[i].participant.getLap(lap).getLapStart();
-      lapJson["LastSeen"] = iTags[i].participant.getLap(lap).getLastSeen();
-    }
-  }
-
-
 }
 
 void saveRace()
@@ -437,6 +428,7 @@ void saveRace()
     participantJson["name"] = iTags[i].participant.getName();
     participantJson["laps"] = iTags[i].participant.getLapCount();
     participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
+    participantJson["inRace"] = iTags[i].participant.getInRace();
 
     JsonArray lapArrayJson = tagJson.createNestedArray("lap");
     for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
