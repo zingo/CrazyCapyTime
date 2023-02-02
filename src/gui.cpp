@@ -199,7 +199,7 @@ bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgParticip
   // index is index into iTag database
   lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
-  lv_obj_set_style_pad_all(panel1, 13,0);
+  lv_obj_set_style_pad_all(panel1, 6,0);
 
   static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, 40, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
@@ -303,7 +303,7 @@ bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uin
 {
   lv_obj_t * panel1 = lv_obj_create(parent);
   lv_obj_set_size(panel1, LV_PCT(100),LV_SIZE_CONTENT);
-  lv_obj_set_style_pad_all(panel1, 13,0); 
+  lv_obj_set_style_pad_all(panel1, 5,0); 
 
   static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_CONTENT,LV_GRID_CONTENT, LV_GRID_CONTENT, 30, LV_GRID_TEMPLATE_LAST};
   static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
@@ -367,27 +367,6 @@ bool gfxAddUserToRace(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uin
   guiParticipants[handleGFX].labelRaceTime = labelTime;
   guiParticipants[handleGFX].labelRaceConnectionStatus = labelConnectionStatus;
 
-/*
-  lv_obj_t * btn;
-  lv_obj_t *label;
-  btn = lv_btn_create(panel1); 
-  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, msgParticipant.handleDB);
-  label = lv_label_create(btn);
-  lv_label_set_text(label, "-");
-  lv_obj_center(label);
-  lv_obj_add_style(label, &styleTagSmallText, 0);
-  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-
-  btn = lv_btn_create(panel1); 
-  lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
-  lv_obj_add_event_cb(btn, btnTagAdd_event_cb, LV_EVENT_ALL, msgParticipant.handleDB);
-  label = lv_label_create(btn);
-  lv_label_set_text(label, "+");
-  lv_obj_center(label);
-  lv_obj_add_style(label, &styleTagSmallText, 0);
-  lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-*/
   return true;  //TODO check errors
 }
 
@@ -417,9 +396,9 @@ void gfxUpdateParticipant(msg_UpdateParticipant msg)
   lv_label_set_text(guiParticipants[index].labelConnectionStatus, conn.c_str());
 
   if (guiParticipants[index].inRace) {
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceDist, "%04.3fkm",msg.distance/1000.0);
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceLaps, "(%02d/%02d)",msg.laps,RACE_LAPS),  (msg.laps*RACE_DISTANCE_LAP)/1000.0;
-    lv_label_set_text_fmt(guiParticipants[index].labelRaceTime, "%03d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceDist, "%4.3fkm",msg.distance/1000.0);
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS),  (msg.laps*RACE_DISTANCE_LAP)/1000.0;
+    lv_label_set_text_fmt(guiParticipants[index].labelRaceTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
     lv_label_set_text(guiParticipants[index].labelRaceConnectionStatus, conn.c_str());
   }
 
@@ -488,17 +467,17 @@ uint32_t gfxAddUserToGUI(msg_AddParticipant &msgParticipant)
 static void createGUITabRace(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_column(parent,5,0);
-  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_column(parent,0,0);
+  lv_obj_set_style_pad_row(parent,0,0);
   lv_obj_set_style_pad_all(parent, 5,0);
 }
 
 static void createGUITabParticipant(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_column(parent,5,0);
-  lv_obj_set_style_pad_row(parent,5,0);
-  lv_obj_set_style_pad_all(parent, 5,0);
+  lv_obj_set_style_pad_column(parent, 2,0);
+  lv_obj_set_style_pad_row(parent, 2,0);
+  lv_obj_set_style_pad_all(parent, 2,0);
 }
 
 static void createGUITabRaceExtra(lv_obj_t * parent)

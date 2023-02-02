@@ -257,22 +257,22 @@ UpdateParticipantInGFX();
 
 //TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
-  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
-  iTag("ff:ff:10:7d:96:2a", "Markus",  true,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
   iTag("ff:ff:10:7f:7c:b7", "Johan",   true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:6a:79:b4", "Lupita",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
   iTag("ff:ff:10:7e:82:46", "Johanna", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:74:90:fe", "Niklas",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
+  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
   iTag("ff:ff:10:7e:52:e0", "Tony",    true,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7d:96:2a", "Markus",  true,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
   iTag("ff:ff:10:7f:7a:4e", "????",    true,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
   iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:6a:79:b4", "Pink2",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
   iTag("ff:ff:10:80:73:95", "Orange1", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
   iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
   iTag("ff:ff:10:7f:2f:ee", "Black1",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
 
