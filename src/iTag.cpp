@@ -75,8 +75,8 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
     msg.UpdateStatus.battery = tag.battery;
     msg.UpdateStatus.inRace = tag.participant.getInRace();
 
-    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-                msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+    //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
     return xReturned;
@@ -169,82 +169,7 @@ void iTag::updateGUI(void)
 
 void iTag::updateGUI_locked(void)
 {
-UpdateParticipantInGFX();
-#if 0
-  lv_obj_set_style_bg_color(ledColor0, lv_color_hex(color0),0);
-  lv_obj_set_style_bg_color(ledColor1, lv_color_hex(color1),0);
-
-//  lv_led_set_color(ledColor0, lv_color_hex(color0));
-//  lv_led_set_color(ledColor1, lv_color_hex(color1));
-  lv_label_set_text(labelName, participant.getName().c_str());
-//  lv_label_set_text(labelLaps, (std::string("L:") + std::to_string(laps)).c_str());
-  lv_label_set_text_fmt(labelDist, "%4.3f km",(participant.getLapCount()*RACE_DISTANCE_LAP)/1000.0);
-  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",participant.getLapCount(),RACE_LAPS);
-
-  struct tm timeinfo;
-  time_t tt = participant.getCurrentLapStart();
-  localtime_r(&tt, &timeinfo);
-  lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
-
-  if (active)
-  {
-    //lv_obj_set_style_opa(labelConnectionStatus, 0, 0);
-    if (connected) {
-      if (participant.getTimeSinceLastSeen() < 20) {
-        lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_OPEN);
-      }
-      else {
-        lv_label_set_text(labelConnectionStatus, LV_SYMBOL_EYE_CLOSE);
-      }
-    }
-    else {
-      lv_label_set_text(labelConnectionStatus, "");
-    }
-  }
-  else {
-    //lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
-    lv_label_set_text(labelConnectionStatus, "");
-  }
-
-  if (raceOngoing)
-  {
-    if (connected && participant.getTimeSinceLastSeen() < 20) {
-      //lv_label_set_text(labelBatterySymbol, LV_SYMBOL_WIFI);
-      lv_label_set_text_fmt(labelBattery, "%d", getRSSI());
-    }
-    else {
-      //lv_label_set_text(labelBatterySymbol, "");
-      lv_label_set_text(labelBattery, "");
-
-    }
-  }
-  else {
-    if (battery > 0) {  
-/*
-      if (battery >= 90) {
-        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_FULL);
-      }
-      else if (battery >= 70) {
-        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_3);
-      }
-      else if (battery >= 40) {
-        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_2);
-      }
-      else if (battery >= 10) {
-        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_1);
-      }
-      else {
-        lv_label_set_text(labelBatterySymbol, LV_SYMBOL_BATTERY_EMPTY);
-      }
-*/
-      lv_label_set_text_fmt(labelBattery, "%3d%%",battery);
-    }
-    else {
-//      lv_label_set_text(labelBatterySymbol, "");
-      lv_label_set_text(labelBattery, "");
-    }
-  }
-#endif
+  UpdateParticipantInGFX();
 }
 
 
@@ -263,9 +188,9 @@ iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
   iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
   iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
-  iTag("ff:ff:10:7e:52:e0", "Tony",    true,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7d:96:2a", "Markus",  true,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7f:7a:4e", "????",    true,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:7e:52:e0", "Tony",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7d:96:2a", "Markus",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7f:7a:4e", "Black1",    false,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
   iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
   iTag("ff:ff:10:6a:79:b4", "Pink2",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
@@ -273,7 +198,7 @@ iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
   iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
   iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
-  iTag("ff:ff:10:7f:2f:ee", "Black1",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:7f:2f:ee", "Black2",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
 
 };
@@ -606,12 +531,10 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_UPDATE_USER_RACE_STATUS:
         {
           uint32_t handleDB = msg.UpdateParticipantRaceStatus.handleDB;
-          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d-------------", 
-               msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d-------------", 
+          //     msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
           if (iTags[handleDB].participant.getInRace() !=  msg.UpdateParticipantRaceStatus.inRace)
           {
-          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d NOT SAME UPDATE-------------", 
-               msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
             // In race changed, update
             iTags[handleDB].participant.setInRace(msg.UpdateParticipantRaceStatus.inRace);
             // Send update to GUI

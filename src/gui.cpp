@@ -126,8 +126,6 @@ static guiParticipant guiParticipants[ITAG_COUNT]; // TODO Could be dynamic
 static uint32_t handleGFX = 0;  // We use the index into guiParticipants as a handle we will give to others like RaceDB
 
 
-
-
 static void btnTime_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -209,8 +207,8 @@ static void btnTagAddToRace_event_cb(lv_event_t * e)
       msg.UpdateParticipantRaceStatus.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantRaceStatus.handleGFX = handleGFX;
       msg.UpdateParticipantRaceStatus.inRace = !guiParticipants[handleGFX].inRace; //TOGGLE
-       ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d -------------------------------------------", 
-                    msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d -------------------------------------------", 
+      //              msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 ));  
       // it it fails let the user click again
       // TODO log error? xReturned;
@@ -833,8 +831,8 @@ void loopHandlLVGL()
       }
       case MSG_GFX_UPDATE_STATUS_USER:
       {
-        ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-                      msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+        //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+        //              msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
         gfxUpdateParticipantStatus(msg.UpdateStatus);
         break;
       }
