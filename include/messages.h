@@ -14,6 +14,8 @@ struct msg_iTagDetected //TODO creat union see union msg_GFX for inspiration
   int8_t battery;
 };
 
+#define MSG_ITAG_CONFIG                  0x1000 //msg_iTagDetected queueBTConnect
+
 struct msg_AddParticipantResponse
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
@@ -30,22 +32,28 @@ struct msg_UpdateParticipantRaceStatus
   bool inRace;
 };
 
+struct msg_LoadSaveRace
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  // TODO Maybe we want a filename here later :)
+};
+
 union msg_RaceDB
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
+  msg_LoadSaveRace LoadRace;
+  msg_LoadSaveRace SaveRace;
 };
 
-#define MSG_ITAG_CONFIG     0x1000 //msg_iTagDetected queueBTConnect
-
-
-#define MSG_ITAG_DETECTED   0x2000 //msg_iTagDetected queueRaceDB
-#define MSG_ITAG_CONFIGURED 0x2001 //msg_iTagDetected queueRaceDB
-
-#define MSG_ITAG_GFX_ADD_USER_RESPONSE 0x2002 //msg_AddParticipantResponse queueRaceDB
+#define MSG_ITAG_DETECTED                0x2000 //msg_iTagDetected queueRaceDB
+#define MSG_ITAG_CONFIGURED              0x2001 //msg_iTagDetected queueRaceDB
+#define MSG_ITAG_GFX_ADD_USER_RESPONSE   0x2002 //msg_AddParticipantResponse queueRaceDB
 #define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2003 //msg_UpdateParticipantRaceStatus queueRaceDB
+#define MSG_ITAG_LOAD_RACE               0x2004 //msg_LoadSaveRace queueRaceDB
+#define MSG_ITAG_SAVE_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
 
 struct msg_AddParticipant
 {
@@ -85,9 +93,9 @@ union msg_GFX
 };
 
 
-#define MSG_GFX_ADD_USER_TO_RACE 0x3004 //msg_AddParticipant queueGFX
-#define MSG_GFX_UPDATE_USER 0x3005 //msg_UpdateParticipant queueGFX
-#define MSG_GFX_UPDATE_STATUS_USER 0x3006 //msg_UpdateParticipantStatus queueGFX
+#define MSG_GFX_ADD_USER_TO_RACE   0x3000 //msg_AddParticipant queueGFX
+#define MSG_GFX_UPDATE_USER        0x3001 //msg_UpdateParticipant queueGFX
+#define MSG_GFX_UPDATE_STATUS_USER 0x3002 //msg_UpdateParticipantStatus queueGFX
 
 extern QueueHandle_t queueRaceDB;  // msg_RaceDB Task/Database manager is blocked reading from this
 extern QueueHandle_t queueBTConnect;     // msg_iTagDetected Bluetooth task is blocked reading from this

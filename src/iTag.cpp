@@ -264,7 +264,7 @@ void updateiTagStatus()
 }
 
 
-void printDirectory(File dir, int numTabs) {
+static void printDirectory(File dir, int numTabs) {
   while (true) {
  
     File entry =  dir.openNextFile();
@@ -286,7 +286,7 @@ void printDirectory(File dir, int numTabs) {
   }
 }
 
-void loadRace()
+static void loadRace()
 {
   {
     unsigned int totalBytes = LittleFS.totalBytes();
@@ -305,9 +305,11 @@ void loadRace()
     dir.close();
   }
 
-  File raceFile = LittleFS.open("/RaceData.json", "r");
+  std::string fileName = std::string("/RaceData2.json");
+
+  File raceFile = LittleFS.open(fileName.c_str(), "r");
   if (!raceFile) {
-    ESP_LOGE(TAG,"ERROR: LittleFS open(/RaceData.json,r) failed");
+    ESP_LOGE(TAG,"ERROR: LittleFS open(%s) failed",fileName.c_str());
     return;
   }
 
@@ -325,7 +327,7 @@ void loadRace()
   ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
 }
 
-void saveRace()
+static void saveRace()
 {
   DynamicJsonDocument raceJson(50000);
   //JsonObject raceJson = jsonDoc.createObject();
@@ -388,10 +390,10 @@ void saveRace()
     printDirectory(dir,0);
     dir.close();
   }
-
-  File raceFile = LittleFS.open("/RaceData2.json", "w");
+  std::string fileName = std::string("/RaceData3.json");
+  File raceFile = LittleFS.open(fileName.c_str(), "w");
   if (!raceFile) {
-    ESP_LOGE(TAG,"ERROR: LittleFS open(/RaceData.json,w) failed");
+    ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) failed", fileName.c_str());
     return;
   }
   serializeJson(raceJson, raceFile);
@@ -542,9 +544,16 @@ void vTaskRaceDB( void *pvParameters )
           }
           break;
         }
-
-
-
+        case MSG_ITAG_LOAD_RACE:
+        {
+          loadRace();
+          break;
+        }
+        case MSG_ITAG_SAVE_RACE:
+        {
+          saveRace();
+          break;
+        }
         default:
           ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
           break;
@@ -592,7 +601,6 @@ void loopHandlTAGs()
     updateTagsNow = false;
     lastScanTime = now;
     updateiTagStatus();
-    //saveRace();
     //rtc.setTime(rtc.getEpoch()+30,0); //fake faster time REMOVE
   }
 }

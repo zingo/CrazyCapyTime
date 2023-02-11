@@ -28,5 +28,3 @@ extern uint32_t raceStartIn;
 extern bool raceOngoing;
 
 void startRaceCountdown();
-void loadRace();
-void saveRace();
