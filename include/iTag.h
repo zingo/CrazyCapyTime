@@ -10,8 +10,7 @@ class iTag;
 extern iTag iTags[ITAG_COUNT];
 
 
-void initiTAGs();
-void loopHandlTAGs();
+void initRaceDB();
 
 void startRaceiTags();
 void refreshTagGUI();

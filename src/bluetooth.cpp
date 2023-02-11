@@ -294,10 +294,11 @@ void initBluetooth()
                   20,                   /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
                   &xHandle );           /* Used to pass out the created task's handle. */
 
-  if( xReturned == pdPASS )
+  if( xReturned != pdPASS )
   {
-      /* The task was created.  Use the task's handle to delete the task. */
-      //vTaskDelete( xHandle );
+    ESP_LOGE(TAG,"FATAL ERROR: xTaskCreate(vTaskBTConnect, BTConnect,..) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
   }
 }
 

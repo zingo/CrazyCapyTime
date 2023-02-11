@@ -17,14 +17,8 @@
 #define TAG "iTAG"
 
 
-std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
+static std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
 
-bool updateTagsNow = false;
-
-void refreshTagGUI()
-{
-  updateTagsNow = true;
-}
 
 bool AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
 {
@@ -223,7 +217,7 @@ void startRaceiTags()
   refreshTagGUI();
 }
 
-void updateiTagStatus()
+void refreshTagGUI()
 {
 //  ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
@@ -262,7 +256,6 @@ void updateiTagStatus()
   }
 //  ESP_LOGI(TAG,"------------------------");
 }
-
 
 static void printDirectory(File dir, int numTabs) {
   while (true) {
@@ -554,6 +547,14 @@ void vTaskRaceDB( void *pvParameters )
           saveRace();
           break;
         }
+        case MSG_ITAG_TIMER_2000:
+        {
+          // update GUI and handle the check if "long time no see" and "disconnect" status
+          // This is used to not accedently count a lap in "too short laps"
+          refreshTagGUI();
+          //rtc.setTime(rtc.getEpoch()+30,0); //DEBUG fake faster time for testing REMOVE
+          break;
+        }
         default:
           ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
           break;
@@ -563,7 +564,17 @@ void vTaskRaceDB( void *pvParameters )
     vTaskDelete( NULL ); // Should never be reached
 }
 
-void initiTAGs()
+// WARNING Executes in the timer deamon contex, NO blocking and NO touching of our data, we will just send a msg to out thread and handle everything there.
+void vTaskRaceDBTimer2000( TimerHandle_t xTimer )
+{
+  //Send a tick message to our message queue to do all work in our own thread
+  msg_RaceDB msg;
+  msg.Timer.header.msgType = MSG_ITAG_TIMER_2000;
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%x handleDB:0x%08x", msg.Timer.header.msgType);
+  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)0); //No blocking in case of problem we will send a new one soon
+}
+
+void initRaceDB()
 {
   // Start iTag Task
   BaseType_t xReturned;
@@ -577,30 +588,23 @@ void initiTAGs()
                   5,                 /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
                   &xHandle );       /* Used to pass out the created task's handle. */
 
-  if( xReturned == pdPASS )
+  if( xReturned != pdPASS )
   {
-      /* The task was created.  Use the task's handle to delete the task. */
-      //vTaskDelete( xHandle );
+    ESP_LOGE(TAG,"FATAL ERROR: xTaskCreate(vTaskRaceDB, RaceDB,..) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
   }
 
-}
-
-
-
-// TODO remove this at least from main thread
-void loopHandlTAGs()
-{
-  // Show connection in log
-  uint32_t now = millis();
-  if (updateTagsNow) {
-    updateTagsNow = false;
-    lastScanTime = now;
-    updateiTagStatus();
+  TimerHandle_t timerHandle = xTimerCreate("RaceDBTimer2000", pdMS_TO_TICKS(2000),pdTRUE, (void *) 0, vTaskRaceDBTimer2000);
+  if( timerHandle == NULL ) {
+    ESP_LOGE(TAG,"FATAL ERROR: xTimerCreate(RaceDBTimer2000,..) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
   }
-  else if (now - lastScanTime > 2000) { 
-    updateTagsNow = false;
-    lastScanTime = now;
-    updateiTagStatus();
-    //rtc.setTime(rtc.getEpoch()+30,0); //fake faster time REMOVE
+
+  if( xTimerStart( timerHandle, pdMS_TO_TICKS(2000) ) != pdPASS ) {
+    ESP_LOGE(TAG,"FATAL ERROR: xTimerStart(RaceDBTimer2000) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
   }
 }

@@ -38,6 +38,13 @@ struct msg_LoadSaveRace
   // TODO Maybe we want a filename here later :)
 };
 
+// Send whenever a timer expiered
+struct msg_Timer
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+};
+
+
 union msg_RaceDB
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
@@ -46,6 +53,7 @@ union msg_RaceDB
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
   msg_LoadSaveRace LoadRace;
   msg_LoadSaveRace SaveRace;
+  msg_Timer Timer;
 };
 
 #define MSG_ITAG_DETECTED                0x2000 //msg_iTagDetected queueRaceDB
@@ -54,6 +62,7 @@ union msg_RaceDB
 #define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2003 //msg_UpdateParticipantRaceStatus queueRaceDB
 #define MSG_ITAG_LOAD_RACE               0x2004 //msg_LoadSaveRace queueRaceDB
 #define MSG_ITAG_SAVE_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
+#define MSG_ITAG_TIMER_2000              0x2006 //msg_Timer queueRaceDB
 
 struct msg_AddParticipant
 {

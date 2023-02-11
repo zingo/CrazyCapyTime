@@ -125,7 +125,7 @@ void setup()
   initMessageQueues(); // Must be called before starting all tasks as theu might use the messages queues
   initLVGL();
   initBluetooth();
-  initiTAGs();
+  initRaceDB();
   initLittleFS();
   ESP_LOGI(TAG, "Setup done switching to running loop");
 
@@ -147,7 +147,6 @@ void loop()
 
   //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
   loopHandlLVGL();
-  loopHandlTAGs();
   delay(5);
 
   static unsigned long lastTimeUpdate = 0;
