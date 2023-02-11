@@ -24,6 +24,9 @@ https://www.aliexpress.com/item/1005004788147691.html
 (About €31)
 Any ESP32 with a screen would work, this one has quite a good big screen so lots of into can be shown. And it is quite cheap.
 
+I also found https://www.makerfabs.com/esp32-s3-parallel-tft-with-touch-4-3-inch.html (About $37)
+that seem to be even better and has an RTC onboard that will make it possible to have power glitched during races, like for switching batteries.
+
 Many x iTags BT5.0 version ITAG Anti-Lost Device
 https://www.aliexpress.com/item/1005004558844093.html
 (About €3.5 each, you need one per person to track)
