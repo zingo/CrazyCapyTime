@@ -64,18 +64,20 @@ class participantData {
     {
       tm timeNow = rtc.getTimeStruct();
       time_t newLapTime = mktime(&timeNow);
-      if ((laps + 1) < (MAX_SAVED_LAPS-1)) {
+      if ((laps + 1) < (MAX_SAVED_LAPS)) {
         laps++;
         setCurrentLap(newLapTime, 0);
         setUpdated();
         refreshTagGUI();
         return true;
       }
-      //MAX LAP ERROR - Just make last lap extra long
-      setCurrentLastSeen(newLapTime-getCurrentLapStart());
-      setUpdated();
-      refreshTagGUI();
-      return false;  
+      else {
+        //MAX LAP ERROR - Just make last lap extra long
+        setCurrentLastSeen(newLapTime-getCurrentLapStart());
+        setUpdated();
+        refreshTagGUI();
+        return false;  
+      }
     }
 
     void clearLaps() {
