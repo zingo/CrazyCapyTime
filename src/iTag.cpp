@@ -16,8 +16,190 @@
 
 #define TAG "iTAG"
 
+void refreshTagGUI();
 
-static std::mutex mutexTags; // Lock when access runtime writable data in any tag TODO make one mutex per tag?
+// We will only connect the first time to config the tag, get battery info
+// and activate it for the race, then it will handle the lap counting and timeing on the
+// BT scanning this will probably avoid and speed up the time spend on detecting tag in the
+// goal/aidstation and make it possible to run passed it faster and it still detect.
+// If this works it will be the default way.
+// Downside is that it will not be possible to make the iTag beep so maybe we want to add
+// some sort of beeper on the main unit. We coauld also connect on the last lap to mark the finish
+// with a beep. 
+
+ //Hopefully good enough for any 6D race
+
+#define MAX_SAVED_LAPS 1000
+
+class lapData {
+  public:
+    lapData(): StartTime(0), LastSeen(0) {}
+    time_t getLapStart() {return StartTime;}
+    time_t getLastSeen() {return LastSeen;}
+    void setLap(time_t timeSinceRaceStart,time_t timeSinceLapStart) {StartTime = timeSinceRaceStart; LastSeen = timeSinceLapStart;}
+    void setLapStart(time_t timeSinceRaceStart) {StartTime = timeSinceRaceStart;}
+    void setLastSeen(time_t timeSinceLapStart) {LastSeen = timeSinceLapStart;}
+  private:
+    time_t StartTime; // Start and End time of last lap
+    time_t LastSeen;  // Start time of running lap e.g. last time Tag was seen (noot needed to save for lap but could be good for debug)
+    //time_t LapTime; // Not needed next entry will contain this
+    //uint32_t Distance; // Not neede for now all laps have equal length
+};
+
+class participantData {
+  public:
+    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { handleGFX_isValid = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
+    std::string getName() {return name;}
+    void setName(std::string inName) {name = inName;}
+    uint32_t getLapCount() {return laps;}
+    void prevLap() {if (laps>0) laps--; } //debug and correcting
+    bool nextLap() {
+      tm timeNow = rtc.getTimeStruct();
+      time_t newLapTime = mktime(&timeNow);
+      if ((laps + 1) < (MAX_SAVED_LAPS-1)) {
+        laps++;
+        setCurrentLap(newLapTime, 0);
+        refreshTagGUI();
+        return true;
+      }
+      //MAX LAP ERROR - Just make last lap extra long
+      setCurrentLastSeen(newLapTime-getCurrentLapStart());
+      refreshTagGUI();
+      return false;  
+    }
+
+    void clearLaps() {
+      laps = 0;
+      timeSinceLastSeen = 0;
+      for (lapData& lap : lapsData) {
+        lap.setLap(0,0);
+      }
+    }
+
+    lapData& getLap(uint32_t lap) { return lapsData.at(lap);}
+    time_t getCurrentLapStart() {return lapsData.at(laps).getLapStart();}
+    void setCurrentLapStart(time_t timeSinceRaceStart) {lapsData.at(laps).setLapStart(timeSinceRaceStart);}
+    time_t getCurrentLastSeen() {return lapsData.at(laps).getLastSeen();}
+    void setCurrentLastSeen(time_t timeSinceLapStart) {lapsData.at(laps).setLastSeen(timeSinceLapStart);}
+    void setCurrentLap(time_t timeSinceRaceStart,time_t timeSinceLapStart) {lapsData.at(laps).setLap(timeSinceRaceStart,timeSinceLapStart);}
+
+    uint32_t getTimeSinceLastSeen() {return timeSinceLastSeen;}
+    void setTimeSinceLastSeen(time_t inTime) {timeSinceLastSeen=inTime;}
+
+    bool getInRace() {return inRace;}
+    void setInRace(bool val) {inRace = val;}
+
+
+
+    bool isHandleGFXValid() { return handleGFX_isValid;}
+
+    uint32_t getHandleGFX() { return handleGFX;}
+
+
+    void setHandleGFX(uint32_t inHandleGFX, bool valid) {
+      handleGFX = inHandleGFX;
+      handleGFX_isValid = valid;
+    }
+
+    //void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
+      //lapsChart = chart;
+      //lapsSeries = series;
+      //updateChart();
+    //}
+    void updateChart()
+    {
+      /*
+      for(int lap=0;lap<=DRAW_MAX_LAPS_IN_CHART;lap++)
+      {
+        if (lap<=laps) {
+          lapData theLap = getLap(lap);
+          //two "dots" per lap, lap start and "last seen" e.g. left aidstation
+          lapsSeries->x_points[2*lap] = theLap.getLapStart();
+          lapsSeries->y_points[2*lap] = lap;
+          lapsSeries->x_points[2*lap+1] = theLap.getLapStart() + theLap.getLastSeen() ;
+          lapsSeries->y_points[2*lap+1] = lap;
+        }
+        else {
+          lapsSeries->x_points[2*lap] = LV_CHART_POINT_NONE;
+          lapsSeries->y_points[2*lap] = LV_CHART_POINT_NONE;
+          lapsSeries->x_points[2*lap+1] = LV_CHART_POINT_NONE;
+          lapsSeries->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+        }
+      }
+      lv_chart_refresh(lapsChart); //Required after direct set
+      */
+    }  
+  private:
+    std::string name;     // Participant name
+    uint32_t laps;
+    uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
+    std::vector<lapData> lapsData;
+    uint32_t handleGFX;
+    bool handleGFX_isValid;
+    bool inRace;
+    //GUI stuff
+    //lv_obj_t * lapsChart;
+    //lv_chart_series_t * lapsSeries; 
+};
+
+
+class iTag {
+  public:
+    std::string address;  // BT UUID
+    uint32_t color0;      // Color of iTag
+    uint32_t color1;      // Color of iTag holder
+    int32_t battery;      // 0-100 and -1 when unknown
+    bool active;          // As in part of race
+    bool connected;       // As near enough right now, e.g. spoted recently
+  
+    participantData participant;
+    bool updated;
+    iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
+    bool UpdateParticipantInGFX();
+    void reset();
+
+    //void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
+    void updateGUI(void);
+    int getRSSI() {return RSSI;}
+    void setRSSI(int val) {RSSI=val;}
+  private:
+    int RSSI;
+};
+
+
+#define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
+#define ITAG_COLOR_WHITE    0xFBFEF8 // Pearl White
+#define ITAG_COLOR_ORANGE   0xFA8128 // Tangerine
+#define ITAG_COLOR_DARKBLUE 0x1034a6 // Egyptian Blue,    0x0b0b45 // Navy blue
+#define ITAG_COLOR_BLACK    0x000000 // Black
+#define ITAG_COLOR_GREEN    0xAEF359 // Lime
+
+//TODO update BTUUIDs, names and color, also make name editable from GUI
+iTag iTags[ITAG_COUNT] = {
+  iTag("ff:ff:10:7f:7c:b7", "Johan",   true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7e:82:46", "Johanna", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:74:90:fe", "Niklas",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
+  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
+  iTag("ff:ff:10:7e:52:e0", "Tony",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7d:96:2a", "Markus",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7f:7a:4e", "Black1",    false,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:6a:79:b4", "Pink2",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:80:73:95", "Orange1", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE),
+  iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
+  iTag("ff:ff:10:7f:2f:ee", "Black2",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
+
+};
+
+
+
+
 
 
 bool AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
@@ -146,7 +328,6 @@ iTag::iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inC
 void iTag::reset()
 {
   {
-    std::lock_guard<std::mutex> lck(mutexTags);
     // TODO clear lap data?
     participant.setCurrentLap(0,0); // TODO set race start so a late tag get full race
     participant.setTimeSinceLastSeen(0);
@@ -157,45 +338,8 @@ void iTag::reset()
 
 void iTag::updateGUI(void)
 {
-  std::lock_guard<std::mutex> lck(mutexTags);
-  updateGUI_locked();
-}
-
-void iTag::updateGUI_locked(void)
-{
   UpdateParticipantInGFX();
 }
-
-
-#define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
-#define ITAG_COLOR_WHITE    0xFBFEF8 // Pearl White
-#define ITAG_COLOR_ORANGE   0xFA8128 // Tangerine
-#define ITAG_COLOR_DARKBLUE 0x1034a6 // Egyptian Blue,    0x0b0b45 // Navy blue
-#define ITAG_COLOR_BLACK    0x000000 // Black
-#define ITAG_COLOR_GREEN    0xAEF359 // Lime
-
-//TODO update BTUUIDs, names and color, also make name editable from GUI
-iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7f:7c:b7", "Johan",   true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7e:82:46", "Johanna", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:74:90:fe", "Niklas",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
-  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
-  iTag("ff:ff:10:7e:52:e0", "Tony",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7d:96:2a", "Markus",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7f:7a:4e", "Black1",    false,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:6a:79:b4", "Pink2",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:80:73:95", "Orange1", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
-  iTag("ff:ff:10:7f:2f:ee", "Black2",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
-
-};
 
 static uint32_t longestNonSeen = 0; // debug
 
@@ -204,7 +348,6 @@ static void startRaceiTags()
   tm timeNow = rtc.getTimeStruct();
   time_t raceStartTime = mktime (&timeNow); //TODO raceStartTime should be something "global"
 
-  std::lock_guard<std::mutex> lck(mutexTags);
   longestNonSeen = 0;
   for(int j=0; j<ITAG_COUNT; j++)
   {
@@ -220,7 +363,6 @@ void refreshTagGUI()
 //  ESP_LOGI(TAG,"----- Active tags: -----");
   for(int j=0; j<ITAG_COUNT; j++)
   {
-    std::lock_guard<std::mutex> lck(mutexTags);
     if (iTags[j].active && iTags[j].connected) {
       // Check if "long time no see" and "disconnect"
       tm timeNow = rtc.getTimeStruct();
@@ -244,7 +386,7 @@ void refreshTagGUI()
 
     if (iTags[j].updated) {
       iTags[j].updated = false;
-      iTags[j].updateGUI_locked(); //TODO don't update all, only what is needed
+      iTags[j].updateGUI(); //TODO don't update all, only what is needed
     //  iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
     }
 
@@ -437,7 +579,6 @@ void vTaskRaceDB( void *pvParameters )
           bool found = false;
           for(int j=0; j<ITAG_COUNT; j++)
           {
-            std::lock_guard<std::mutex> lck(mutexTags);
             if (bleAddress == iTags[j].address) {
               found = true;
               //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
@@ -499,7 +640,6 @@ void vTaskRaceDB( void *pvParameters )
           std::string bleAddress = convertBLEAddressToString(msg.iTag.address);
           for(int j=0; j<ITAG_COUNT; j++)
           {
-            std::lock_guard<std::mutex> lck(mutexTags);
             // TODO send index? so we don't need the string compare here???
             if(bleAddress == iTags[j].address) {
                             time_t newLapTime = msg.iTag.time;
