@@ -29,7 +29,15 @@ struct msg_UpdateParticipantRaceStatus
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   uint32_t handleDB;
   uint32_t handleGFX;
-  bool inRace;
+  bool inRace;         // Is the user in a race or not
+};
+
+struct msg_UpdateParticipantLapCount
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  uint32_t handleDB;
+  uint32_t handleGFX;
+  int32_t lapDiff;  //Value is added to lap negative values will result in a subtraction.
 };
 
 struct msg_LoadSaveRace
@@ -49,27 +57,29 @@ struct msg_Timer
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
 };
 
-
 union msg_RaceDB
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
+  msg_UpdateParticipantLapCount UpdateParticipantLapCount;
   msg_LoadSaveRace LoadRace;
   msg_LoadSaveRace SaveRace;
   msg_Timer Timer;
   msg_StartRace StartRace;
 };
 
+// TODO this chould be class enum to avoid typo misstakes
 #define MSG_ITAG_DETECTED                0x2000 //msg_iTagDetected queueRaceDB
 #define MSG_ITAG_CONFIGURED              0x2001 //msg_iTagDetected queueRaceDB
 #define MSG_ITAG_GFX_ADD_USER_RESPONSE   0x2002 //msg_AddParticipantResponse queueRaceDB
 #define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2003 //msg_UpdateParticipantRaceStatus queueRaceDB
-#define MSG_ITAG_LOAD_RACE               0x2004 //msg_LoadSaveRace queueRaceDB
-#define MSG_ITAG_SAVE_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
-#define MSG_ITAG_START_RACE              0x2006 //msg_StartRace queueRaceDB
-#define MSG_ITAG_TIMER_2000              0x2007 //msg_Timer queueRaceDB
+#define MSG_ITAG_UPDATE_USER_LAP_COUNT   0x2004 //msg_UpdateParticipantRaceStatus queueRaceDB
+#define MSG_ITAG_LOAD_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
+#define MSG_ITAG_SAVE_RACE               0x2006 //msg_LoadSaveRace queueRaceDB
+#define MSG_ITAG_START_RACE              0x2007 //msg_StartRace queueRaceDB
+#define MSG_ITAG_TIMER_2000              0x2008 //msg_Timer queueRaceDB
 
 struct msg_AddParticipant
 {
