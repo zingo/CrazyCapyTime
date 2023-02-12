@@ -48,22 +48,32 @@ class lapData {
 
 class participantData {
   public:
-    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { handleGFX_isValid = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
+    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { handleGFX_isValid = false;  inRace = false; updated = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
     std::string getName() {return name;}
     void setName(std::string inName) {name = inName;}
     uint32_t getLapCount() {return laps;}
-    void prevLap() {if (laps>0) laps--; } //debug and correcting
-    bool nextLap() {
+
+    void prevLap()
+    {
+      if (laps>0) laps--;
+      setUpdated();
+      refreshTagGUI();
+    }
+
+    bool nextLap()
+    {
       tm timeNow = rtc.getTimeStruct();
       time_t newLapTime = mktime(&timeNow);
       if ((laps + 1) < (MAX_SAVED_LAPS-1)) {
         laps++;
         setCurrentLap(newLapTime, 0);
+        setUpdated();
         refreshTagGUI();
         return true;
       }
       //MAX LAP ERROR - Just make last lap extra long
       setCurrentLastSeen(newLapTime-getCurrentLapStart());
+      setUpdated();
       refreshTagGUI();
       return false;  
     }
@@ -89,7 +99,9 @@ class participantData {
     bool getInRace() {return inRace;}
     void setInRace(bool val) {inRace = val;}
 
-
+    bool isUpdated() {return updated;}
+    void handledUpdate() {updated = false;}
+    void setUpdated() {updated = true;}
 
     bool isHandleGFXValid() { return handleGFX_isValid;}
 
@@ -128,7 +140,8 @@ class participantData {
       }
       lv_chart_refresh(lapsChart); //Required after direct set
       */
-    }  
+    }
+
   private:
     std::string name;     // Participant name
     uint32_t laps;
@@ -137,6 +150,7 @@ class participantData {
     uint32_t handleGFX;
     bool handleGFX_isValid;
     bool inRace;
+    bool updated; // use to trigger GUI update
     //GUI stuff
     //lv_obj_t * lapsChart;
     //lv_chart_series_t * lapsSeries; 
@@ -153,7 +167,6 @@ class iTag {
     bool connected;       // As near enough right now, e.g. spoted recently
   
     participantData participant;
-    bool updated;
     iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
     bool UpdateParticipantInGFX();
     void reset();
@@ -196,10 +209,6 @@ iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
 
 };
-
-
-
-
 
 
 bool AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
@@ -269,6 +278,7 @@ bool iTag::UpdateParticipantInGFX()
 {
   if(participant.isHandleGFXValid())
   {
+    participant.handledUpdate();
     msg_GFX msg;
     msg.Update.header.msgType = MSG_GFX_UPDATE_USER;
     msg.Update.handleGFX = participant.getHandleGFX();
@@ -322,7 +332,7 @@ iTag::iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inC
   participant.setName(inName);
   participant.setInRace(isInRace);
   participant.clearLaps();
-  updated = false;
+  participant.handledUpdate(); //clear it
 }
 
 void iTag::reset()
@@ -332,7 +342,7 @@ void iTag::reset()
     participant.setCurrentLap(0,0); // TODO set race start so a late tag get full race
     participant.setTimeSinceLastSeen(0);
     active = true;
-    updated = true; // will trigger GUI update later
+    participant.setUpdated(); // will trigger GUI update later
   }
 }
 
@@ -351,9 +361,9 @@ static void startRaceiTags()
   longestNonSeen = 0;
   for(int j=0; j<ITAG_COUNT; j++)
   {
-    iTags[j].updated = true;
     iTags[j].participant.clearLaps();
     iTags[j].participant.setCurrentLap(raceStartTime,0);
+    iTags[j].participant.setUpdated();
   }
   refreshTagGUI();
 }
@@ -379,14 +389,13 @@ void refreshTagGUI()
         ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen());
         iTags[j].connected = false;
       }
-      iTags[j].updated = true;
+      iTags[j].participant.setUpdated();
     }
 
 // TODO send update msg to GUI
 
-    if (iTags[j].updated) {
-      iTags[j].updated = false;
-      iTags[j].updateGUI(); //TODO don't update all, only what is needed
+    if (iTags[j].participant.isUpdated()) {
+      iTags[j].updateGUI();
     //  iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
     }
 
@@ -609,7 +618,7 @@ void vTaskRaceDB( void *pvParameters )
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
               }
 
-              iTags[j].updated = true; // Make it redraw when GUI loop looks at it
+              iTags[j].participant.setUpdated(); // Make it redraw when GUI loop looks at it
               UpdateParticipantStatusInGFX(iTags[j]);
               
               if (!iTags[j].active) {
@@ -664,7 +673,7 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_UPDATE_USER_RACE_STATUS:
         {
           uint32_t handleDB = msg.UpdateParticipantRaceStatus.handleDB;
-          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d-------------", 
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d", 
           //     msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
           if (iTags[handleDB].participant.getInRace() !=  msg.UpdateParticipantRaceStatus.inRace)
           {
@@ -675,18 +684,55 @@ void vTaskRaceDB( void *pvParameters )
           }
           break;
         }
+        case MSG_ITAG_UPDATE_USER_LAP_COUNT:
+        {
+          uint32_t handleDB = msg.UpdateParticipantLapCount.handleDB;
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+               msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+  
+          // We add/sub the laps one at a time to make sure all is handled
+          // If we ever start adding/removing large amount of laps this can be reworked but
+          // this should typical (probably always?) only be +1,-1
+          int32_t lapDiff = msg.UpdateParticipantLapCount.lapDiff;
+          if (lapDiff < 0) {
+            // Negative remove laps
+            ESP_LOGI(TAG," Negative diff %d laps",lapDiff);
+            for(int i = 0; i > lapDiff; i--)
+            {
+              ESP_LOGI(TAG," Removing %d/%d laps",i, lapDiff);
+              iTags[handleDB].participant.prevLap();
+            }
+          }
+          else  if (lapDiff > 0) {
+            // Positive add laps
+            ESP_LOGI(TAG," Positive diff %d laps",lapDiff);
+            for(int i = 0; i < lapDiff; i++)
+            {
+              ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
+              iTags[handleDB].participant.nextLap();
+            }
+          }
+          else {
+            ESP_LOGW(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d = 0 -> Do nothing",
+                msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+          }
+          break;
+        }
         case MSG_ITAG_LOAD_RACE:
         {
+          ESP_LOGI(TAG,"Received: MSG_ITAG_LOAD_RACE MSG:0x%x", msg.LoadRace.header.msgType);
           loadRace();
           break;
         }
         case MSG_ITAG_SAVE_RACE:
         {
+          ESP_LOGI(TAG,"Received: MSG_ITAG_SAVE_RACE MSG:0x%x", msg.SaveRace.header.msgType);
           saveRace();
           break;
         }
         case MSG_ITAG_START_RACE:
         {
+          ESP_LOGI(TAG,"Received: MSG_ITAG_START_RACE MSG:0x%x", msg.StartRace.header.msgType);
           startRaceiTags();
           break;
         }
@@ -714,7 +760,11 @@ void vTaskRaceDBTimer2000( TimerHandle_t xTimer )
   msg_RaceDB msg;
   msg.Timer.header.msgType = MSG_ITAG_TIMER_2000;
   //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%x handleDB:0x%08x", msg.Timer.header.msgType);
-  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)0); //No blocking in case of problem we will send a new one soon
+  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)0); //No blocking
+  if( xReturned != pdPASS )
+  {
+    ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_TIMER_2000 MSG:0x%x handleDB:0x%08x Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
+  }
 }
 
 void initRaceDB()

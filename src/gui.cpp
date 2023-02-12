@@ -1,7 +1,5 @@
 /*******************************************************************************
  * LVGL Widgets
- * This is a widgets demo for LVGL - Light and Versatile Graphics Library
- * import from: https://github.com/lvgl/lv_demos.git
  *
  * This was created from the project here 
  * https://www.makerfabs.com/sunton-esp32-s3-4-3-inch-ips-with-touch.html
@@ -15,14 +13,7 @@
  * XPT2046: https://github.com/PaulStoffregen/XPT2046_Touchscreen.git
  *
  * LVGL Configuration file:
- * Copy your_arduino_path/libraries/lvgl/lv_conf_template.h
- * to your_arduino_path/libraries/lv_conf.h
- * Then find and set:
- * #define LV_COLOR_DEPTH     16
- * #define LV_TICK_CUSTOM     1
- *
- * For SPI display set color swap can be faster, parallel screen don't set!
- * #define LV_COLOR_16_SWAP   1
+ * include/lv_conf.h
  *
  * Optional: Show CPU usage and FPS count
  * #define LV_USE_PERF_MONITOR 1
@@ -189,7 +180,19 @@ static void btnTagAdd_event_cb(lv_event_t * e)
     //lv_obj_t * btn = lv_event_get_target(e);
     if(code == LV_EVENT_SHORT_CLICKED) {
       uint32_t handleGFX = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
-      //tag->participant.nextLap();
+      msg_RaceDB msg;
+      msg.UpdateParticipantLapCount.header.msgType = MSG_ITAG_UPDATE_USER_LAP_COUNT;
+      msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
+      msg.UpdateParticipantLapCount.handleGFX = handleGFX;
+      msg.UpdateParticipantLapCount.lapDiff = 1;
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
+      if (!xReturned) {
+        // it it fails let the user click again
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+                      msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      }
     }
 }
 
@@ -199,7 +202,19 @@ static void btnTagSub_event_cb(lv_event_t * e)
     //lv_obj_t * btn = lv_event_get_target(e);
     if(code == LV_EVENT_SHORT_CLICKED) {
       uint32_t handleGFX = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
-      //tag->participant.prevLap();
+      msg_RaceDB msg;
+      msg.UpdateParticipantLapCount.header.msgType = MSG_ITAG_UPDATE_USER_LAP_COUNT;
+      msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
+      msg.UpdateParticipantLapCount.handleGFX = handleGFX;
+      msg.UpdateParticipantLapCount.lapDiff = -1;
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
+      if (!xReturned) {
+        // it it fails let the user click again
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+                      msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      }
     }
 }
 
@@ -215,9 +230,9 @@ static void btnTagAddToRace_event_cb(lv_event_t * e)
       msg.UpdateParticipantRaceStatus.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantRaceStatus.handleGFX = handleGFX;
       msg.UpdateParticipantRaceStatus.inRace = !guiParticipants[handleGFX].inRace; //TOGGLE
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d -------------------------------------------", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d", 
       //              msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
-      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 ));  
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       // it it fails let the user click again
       // TODO log error? xReturned;
 
