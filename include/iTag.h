@@ -12,7 +12,6 @@ extern iTag iTags[ITAG_COUNT];
 
 void initRaceDB();
 
-void startRaceiTags();
 void refreshTagGUI();
 
 // We will only connect the first time to config the tag, get battery info

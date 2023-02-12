@@ -69,18 +69,26 @@ void initMessageQueues()
 
 void startRaceCountdown()
 {
-  rtc.setTime(0,0);  // TODO remove, for now EPOCH is sued for the countdown as RACE_COUNTDOWN-EPOCH
-  startRaceiTags();
+  rtc.setTime(0,0);  // TODO remove, for now EPOCH is used for the countdown as RACE_COUNTDOWN-EPOCH
   raceStartIn = RACE_COUNTDOWN; //seconds
   raceOngoing = false;
+
+  msg_RaceDB msg;
+  msg.StartRace.header.msgType = MSG_ITAG_START_RACE;  // We send this to "Clear data" before countdown, this would be what a user expect
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_START_RACE MSG:0x%x handleDB:0x%08x", msg.StartRace.header.msgType);
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
 void startRace()
 {
-  rtc.setTime(0,0);
-  startRaceiTags();
+  rtc.setTime(0,0);  // TODO remove when we have RTC HW  and save reace start instead
   raceStartIn = 0;
   raceOngoing = true;
+
+  msg_RaceDB msg;
+  msg.StartRace.header.msgType = MSG_ITAG_START_RACE;  // We send this to "Clear data" before countdown, this would be what a user expect
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_START_RACE MSG:0x%x handleDB:0x%08x", msg.StartRace.header.msgType);
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  //TODO figure out best way to handle problem here
 }
 
 void showHeapInfo()

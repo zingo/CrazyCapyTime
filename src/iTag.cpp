@@ -197,11 +197,9 @@ iTag iTags[ITAG_COUNT] = {
 
 };
 
-uint32_t lastScanTime = 0;
-static uint32_t longestNonSeen = 0;
+static uint32_t longestNonSeen = 0; // debug
 
-
-void startRaceiTags()
+static void startRaceiTags()
 {
   tm timeNow = rtc.getTimeStruct();
   time_t raceStartTime = mktime (&timeNow); //TODO raceStartTime should be something "global"
@@ -545,6 +543,11 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_SAVE_RACE:
         {
           saveRace();
+          break;
+        }
+        case MSG_ITAG_START_RACE:
+        {
+          startRaceiTags();
           break;
         }
         case MSG_ITAG_TIMER_2000:
