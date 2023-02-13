@@ -81,6 +81,7 @@ union msg_RaceDB
 #define MSG_ITAG_START_RACE              0x2007 //msg_StartRace queueRaceDB
 #define MSG_ITAG_TIMER_2000              0x2008 //msg_Timer queueRaceDB
 
+// Startup setup of all participants in GUI will respond with MSG_ITAG_GFX_ADD_USER_RESPONSE containing the handleGFX that is later used
 struct msg_AddParticipant
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
@@ -91,7 +92,19 @@ struct msg_AddParticipant
   bool inRace;
 };
 
+// Used when loading or reconfig a user
 struct msg_UpdateParticipant
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  uint32_t handleGFX;
+  uint32_t color0;
+  uint32_t color1;
+  char name[PARTICIPANT_NAME_LENGTH+1]; // add one for nulltermination
+  bool inRace;
+};
+
+// Sent now and then during a Race to update GUI
+struct msg_UpdateParticipantData
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
   uint32_t handleGFX;
@@ -101,6 +114,7 @@ struct msg_UpdateParticipant
   int8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
 };
 
+// Sent when non race thing needs to update GUI
 struct msg_UpdateParticipantStatus
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
@@ -113,15 +127,17 @@ struct msg_UpdateParticipantStatus
 union msg_GFX
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
-  msg_AddParticipant Add;
-  msg_UpdateParticipant Update;
+  msg_AddParticipant AddUser;
+  msg_UpdateParticipant UpdateUser;
+  msg_UpdateParticipantData UpdateUserData;
   msg_UpdateParticipantStatus UpdateStatus;
 };
 
 
-#define MSG_GFX_ADD_USER_TO_RACE   0x3000 //msg_AddParticipant queueGFX
+#define MSG_GFX_ADD_USER           0x3000 //msg_AddParticipant queueGFX
 #define MSG_GFX_UPDATE_USER        0x3001 //msg_UpdateParticipant queueGFX
-#define MSG_GFX_UPDATE_STATUS_USER 0x3002 //msg_UpdateParticipantStatus queueGFX
+#define MSG_GFX_UPDATE_USER_DATA   0x3002 //msg_UpdateParticipantData queueGFX
+#define MSG_GFX_UPDATE_USER_STATUS 0x3003 //msg_UpdateParticipantStatus queueGFX
 
 extern QueueHandle_t queueRaceDB;  // msg_RaceDB Task/Database manager is blocked reading from this
 extern QueueHandle_t queueBTConnect;     // msg_iTagDetected Bluetooth task is blocked reading from this

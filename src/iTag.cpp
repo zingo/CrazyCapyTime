@@ -60,24 +60,31 @@ class participantData {
       refreshTagGUI();
     }
 
-    bool nextLap()
+    // usefull when loading a lap and lapstart is not "now"
+    bool nextLap(time_t lapStart,time_t lastSeen)
     {
-      tm timeNow = rtc.getTimeStruct();
-      time_t newLapTime = mktime(&timeNow);
       if ((laps + 1) < (MAX_SAVED_LAPS)) {
         laps++;
-        setCurrentLap(newLapTime, 0);
+        setCurrentLap(lapStart, lastSeen);
         setUpdated();
         refreshTagGUI();
         return true;
       }
       else {
         //MAX LAP ERROR - Just make last lap extra long
-        setCurrentLastSeen(newLapTime-getCurrentLapStart());
+        setCurrentLastSeen(lapStart-getCurrentLapStart());
         setUpdated();
         refreshTagGUI();
         return false;  
       }
+    }
+
+    // usefull for triggering a new lap "now" (during race)
+    bool nextLap()
+    {
+      tm timeNow = rtc.getTimeStruct();
+      time_t newLapTime = mktime(&timeNow);
+      return nextLap(newLapTime, 0);
     }
 
     void clearLaps() {
@@ -165,12 +172,12 @@ class iTag {
     uint32_t color0;      // Color of iTag
     uint32_t color1;      // Color of iTag holder
     int32_t battery;      // 0-100 and -1 when unknown
-    bool active;          // As in part of race
+    bool active;          // As in part of race, has been configured (or on it's way to be)
     bool connected;       // As near enough right now, e.g. spoted recently
   
     participantData participant;
     iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
-    bool UpdateParticipantInGFX();
+    bool UpdateParticipantDataInGFX();
     void reset();
 
     //void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
@@ -213,31 +220,61 @@ iTag iTags[ITAG_COUNT] = {
 };
 
 
-bool AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
+static void AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
 {
   msg_GFX msg;
-  msg.Add.header.msgType = MSG_GFX_ADD_USER_TO_RACE;
-  msg.Add.handleDB = handleDB;
-  msg.Add.color0 = col0;
-  msg.Add.color1 = col1;
+  msg.AddUser.header.msgType = MSG_GFX_ADD_USER;
+  msg.AddUser.handleDB = handleDB;
+  msg.AddUser.color0 = col0;
+  msg.AddUser.color1 = col1;
   std::string name = participant.getName();
-  size_t len = name.copy(msg.Add.name, PARTICIPANT_NAME_LENGTH);
-  msg.Add.name[len] = '\0';
-  msg.Add.inRace = participant.getInRace();  
+  size_t len = name.copy(msg.AddUser.name, PARTICIPANT_NAME_LENGTH);
+  msg.AddUser.name[len] = '\0';
+  msg.AddUser.inRace = participant.getInRace();  
 
-  ESP_LOGI(TAG,"Add User: MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
-               msg.Add.header.msgType, msg.Add.handleDB, msg.Add.color0, msg.Add.color1, msg.Add.name, msg.Add.inRace);
+  ESP_LOGI(TAG,"Send: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+               msg.AddUser.header.msgType, msg.AddUser.handleDB, msg.AddUser.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
 
   BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ? if not participant.isHandleGFXValid() sometimes later
+  if (!xReturned) {
+    // it it fails er are probably smoked
+    ESP_LOGE(TAG,"FATAL ERROR: Send: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d could not be sent in 2000ms. INITIAL SETUP ERROR",
+                 msg.AddUser.header.msgType, msg.AddUser.handleDB, msg.AddUser.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
+  }
+}
+
+static bool UpdateParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
+{
+  msg_GFX msg;
+  msg.UpdateUser.header.msgType = MSG_GFX_UPDATE_USER;
+  msg.UpdateUser.handleGFX = participant.getHandleGFX();
+  msg.UpdateUser.color0 = col0;
+  msg.UpdateUser.color1 = col1;
+  std::string name = participant.getName();
+  size_t len = name.copy(msg.UpdateUser.name, PARTICIPANT_NAME_LENGTH);
+  msg.UpdateUser.name[len] = '\0';
+  msg.UpdateUser.inRace = participant.getInRace();
+
+  ESP_LOGI(TAG,"Send: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+               msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
+
+  BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ? if not participant.isHandleGFXValid() sometimes later
+  if (!xReturned) {
+    // it it fails let the user click again
+    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d could not be sent in 2000ms. USER need to retry",
+                 msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
+  }
   return xReturned;
 }
 
-bool UpdateParticipantStatusInGFX(iTag &tag)
+static bool UpdateParticipantStatusInGFX(iTag &tag)
 {
   if(tag.participant.isHandleGFXValid())
   {
     msg_GFX msg;
-    msg.UpdateStatus.header.msgType = MSG_GFX_UPDATE_STATUS_USER;
+    msg.UpdateStatus.header.msgType = MSG_GFX_UPDATE_USER_STATUS;
     msg.UpdateStatus.handleGFX = tag.participant.getHandleGFX();
 
     if (tag.active)
@@ -262,7 +299,7 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
     msg.UpdateStatus.battery = tag.battery;
     msg.UpdateStatus.inRace = tag.participant.getInRace();
 
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_STATUS_USER: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
     //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
@@ -276,38 +313,38 @@ bool UpdateParticipantStatusInGFX(iTag &tag)
 }
 
 
-bool iTag::UpdateParticipantInGFX()
+bool iTag::UpdateParticipantDataInGFX()
 {
   if(participant.isHandleGFXValid())
   {
     participant.handledUpdate();
     msg_GFX msg;
-    msg.Update.header.msgType = MSG_GFX_UPDATE_USER;
-    msg.Update.handleGFX = participant.getHandleGFX();
+    msg.UpdateUserData.header.msgType = MSG_GFX_UPDATE_USER_DATA;
+    msg.UpdateUserData.handleGFX = participant.getHandleGFX();
 
-    msg.Update.distance = participant.getLapCount()* RACE_DISTANCE_LAP;
-    msg.Update.laps = participant.getLapCount();
-    msg.Update.lastlaptime = participant.getCurrentLapStart();
+    msg.UpdateUserData.distance = participant.getLapCount()* RACE_DISTANCE_LAP;
+    msg.UpdateUserData.laps = participant.getLapCount();
+    msg.UpdateUserData.lastlaptime = participant.getCurrentLapStart();
 
     if (active)
     {
       if (connected) {
         if (participant.getTimeSinceLastSeen() < 20) {
-          msg.Update.connectionStatus = getRSSI();
+          msg.UpdateUserData.connectionStatus = getRSSI();
         }
         else {
-          msg.Update.connectionStatus = 1;
+          msg.UpdateUserData.connectionStatus = 1;
         }
       }
       else {
-          msg.Update.connectionStatus = 0;
+          msg.UpdateUserData.connectionStatus = 0;
       }
     }
     else {
-          msg.Update.connectionStatus = 0;
+          msg.UpdateUserData.connectionStatus = 0;
     }
 
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
     //            msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime,msg.Update.connectionStatus);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
@@ -350,7 +387,7 @@ void iTag::reset()
 
 void iTag::updateGUI(void)
 {
-  UpdateParticipantInGFX();
+  UpdateParticipantDataInGFX();
 }
 
 static uint32_t longestNonSeen = 0; // debug
@@ -408,6 +445,7 @@ void refreshTagGUI()
 //  ESP_LOGI(TAG,"------------------------");
 }
 
+
 static void printDirectory(File dir, int numTabs) {
   while (true) {
  
@@ -430,24 +468,30 @@ static void printDirectory(File dir, int numTabs) {
   }
 }
 
+static void checkDisk()
+{
+  unsigned int totalBytes = LittleFS.totalBytes();
+  unsigned int usedBytes = LittleFS.usedBytes();
+  unsigned int freeBytes  = totalBytes - freeBytes;
+
+  ESP_LOGI(TAG,"File system info: -----------");
+  ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes);
+  ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
+  ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
+
+  // Open dir folder
+  File dir = LittleFS.open("/");
+  // Cycle all the content
+  printDirectory(dir,0);
+  dir.close();
+  ESP_LOGI(TAG,"-----------------------------");
+
+}
+
+
 static void loadRace()
 {
-  {
-    unsigned int totalBytes = LittleFS.totalBytes();
-    unsigned int usedBytes = LittleFS.usedBytes();
-    unsigned int freeBytes  = totalBytes - freeBytes;
- 
-    ESP_LOGI(TAG,"File sistem info: ----------- LOAD"); 
-    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
-    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
-    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
- 
-    // Open dir folder
-    File dir = LittleFS.open("/");
-    // Cycle all the content
-    printDirectory(dir,0);
-    dir.close();
-  }
+  checkDisk(); // just for debug
 
   std::string fileName = std::string("/RaceData2.json");
 
@@ -457,7 +501,7 @@ static void loadRace()
     return;
   }
 
-  DynamicJsonDocument raceJson(50000);
+  DynamicJsonDocument raceJson(50000);  // TODO verify with a maximum Tags/Laps file
   DeserializationError err = deserializeJson(raceJson, raceFile);
   raceFile.close();
   if (err) {
@@ -469,17 +513,111 @@ static void loadRace()
   String output = "";
   serializeJsonPretty(raceJson, output);
   ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
+  std::string version = raceJson["fileformatversion"];
+
+  if ( ! (version == "0.1" || version == "0.2")) {   //TODO remove support for 0.1
+    ESP_LOGI(TAG,"fileformatversion=%s != 0.1 (NOK) Do nothing",version.c_str());
+    return;
+  }
+  ESP_LOGI(TAG,"fileformatversion=%s (OK)",version.c_str());
+  time_t raceStart = raceJson["start"];
+  uint32_t raceDist = raceJson["distance"];
+  uint32_t raceLaps = raceJson["laps"];
+  double raceLapDist = raceJson["lapsdistance"];
+  uint32_t raceTagCount = raceJson["tags"];
+  if ( raceTagCount > ITAG_COUNT) {
+    // TODO make ITAG_COUNT database dynamic? We have like 8MB ram anyway :)
+    ESP_LOGW(TAG,"tags=%d is larger then number of supported tags: %d (will only read %d first tags SORRY)",raceTagCount, ITAG_COUNT,ITAG_COUNT);
+    raceTagCount = ITAG_COUNT;
+  }
+
+  for(int i=0; i<raceTagCount; i++)
+  {
+    JsonObject tagJson = raceJson["tag"][i];
+    if (tagJson == nullptr)
+    {
+      ESP_LOGE(TAG,"ERROR: File should have at least %d tags, but problem reading tag:%d Stop reading tags SORRY",raceTagCount, i);
+      break;
+    }
+    std::string tagAddress = tagJson["address"]; // -> iTags[i].address;
+    uint32_t tagColor0 = tagJson["color0"]; // -> iTags[i].color0;
+    uint32_t tagColor1 = tagJson["color1"]; // -> iTags[i].color1;
+    bool tagActive = tagJson["active"]; // -> iTags[i].active;
+ 
+    JsonObject participantJson = tagJson["participant"];
+    std::string participantName = participantJson["name"]; // -> iTags[i].participant.getName();
+    uint32_t participantLaps = participantJson["laps"]; // -> iTags[i].participant.getLapCount();
+    uint32_t participantTimeSinceLastSeen = participantJson["timeSinceLastSeen"]; // -> iTags[i].participant.getTimeSinceLastSeen();
+    bool participantInRace = participantJson["inRace"]; // -> iTags[i].participant.getInRace();
+
+    ESP_LOGI(TAG,"iTag[%02d] %s (0x%06x 0x%06x) %s Participant: laps:%4d, lastSeen:%8d %s %s",i,tagAddress.c_str(),tagColor0,tagColor1,tagActive?"ACTIVE":"  NO  ",participantLaps,participantTimeSinceLastSeen,participantInRace?"Race":" NO ",participantName.c_str());
+    iTags[i].address = tagAddress;
+    iTags[i].color0 = tagColor0;
+    iTags[i].color1 = tagColor1;
+    //iTags[i].active = tagActive;
+    iTags[i].participant.setName(participantName);
+    //iTags[i].participant.set (participantLaps); //will be handled by the lap loop
+    iTags[i].participant.setTimeSinceLastSeen(participantTimeSinceLastSeen);
+    iTags[i].participant.setInRace(participantInRace); //TOD do not update correctly
+    iTags[i].participant.clearLaps();
+    iTags[i].participant.setUpdated(); // TODO triger resend of name and tag color also
+
+    UpdateParticipantToGFX(i,iTags[i].participant,tagColor0, tagColor1);
+
+    if ( version == "0.1" ) {
+      // TODO remove support for 0.1
+      for(int lap=0; lap<=MAX_SAVED_LAPS; lap++)
+      {
+        JsonObject lapJson = tagJson["lap"][lap];
+        if (lapJson == nullptr)
+        {
+          // No more laps saved
+          break;
+        }
+        time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
+        time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
+        ESP_LOGI(TAG,"         lap[%4d] StartTime:%8d, lastSeen:%8d",lap,lapStart,lapLastSeen);
+        if (lap==0) {
+          iTags[i].participant.setCurrentLap(lapStart,lapLastSeen);
+        }
+        else {
+          iTags[i].participant.nextLap(lapStart, lapLastSeen);
+        }
+      }
+
+    }
+    else {
+      for(int lap=0; lap<=MAX_SAVED_LAPS; lap++)
+      {
+        JsonObject lapJson = participantJson["laps"][lap];
+        if (lapJson == nullptr)
+        {
+          // No more laps saved
+          break;
+        }
+        time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
+        time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
+        ESP_LOGI(TAG,"         lap[%4d] StartTime:%8d, lastSeen:%8d",lap,lapStart,lapLastSeen);
+        if (lap==0) {
+          iTags[i].participant.setCurrentLap(lapStart,lapLastSeen);
+        }
+        else {
+          iTags[i].participant.nextLap(lapStart, lapLastSeen);
+        }
+      }
+    }
+  }
 }
 
 static void saveRace()
 {
-  DynamicJsonDocument raceJson(50000);
+  DynamicJsonDocument raceJson(50000); // TODO verify with a maximum Tags/Laps file
   //JsonObject raceJson = jsonDoc.createObject();
   //char JSONmessageBuffer[200];
 
   raceJson["Appname"] = "CrazyCapyTime";
   raceJson["filetype"] = "racedata";
-  raceJson["fileformatversion"] = "0.1";
+  raceJson["fileformatversion"] = "0.2";
   raceJson["start"] = 0;
   raceJson["distance"] = RACE_DISTANCE_TOTAL;
   raceJson["laps"] = RACE_LAPS;
@@ -495,16 +633,16 @@ static void saveRace()
     tagJson["color0"] = iTags[i].color0;
     tagJson["color1"] = iTags[i].color1;
     tagJson["active"] = iTags[i].active;
-    JsonObject participantJson = tagJson.createNestedObject("participant"); 
+    JsonObject participantJson = tagJson.createNestedObject("participant");
     participantJson["name"] = iTags[i].participant.getName();
     participantJson["laps"] = iTags[i].participant.getLapCount();
     participantJson["timeSinceLastSeen"] = iTags[i].participant.getTimeSinceLastSeen();
     participantJson["inRace"] = iTags[i].participant.getInRace();
 
-    JsonArray lapArrayJson = tagJson.createNestedArray("lap");
+    JsonArray lapArrayJson = participantJson.createNestedArray("laps");
     for(int lap=0; lap<=iTags[i].participant.getLapCount(); lap++)
     {
-      JsonObject lapJson = lapArrayJson.createNestedObject(); 
+      JsonObject lapJson = lapArrayJson.createNestedObject();
       lapJson["StartTime"] = iTags[i].participant.getLap(lap).getLapStart();
       lapJson["LastSeen"] = iTags[i].participant.getLap(lap).getLastSeen();
     }
@@ -518,22 +656,8 @@ static void saveRace()
   ESP_LOGI(TAG,"json: \n%s", output.c_str());
 
 
-  {
-    unsigned int totalBytes = LittleFS.totalBytes();
-    unsigned int usedBytes = LittleFS.usedBytes();
-    unsigned int freeBytes  = totalBytes - freeBytes;
- 
-    ESP_LOGI(TAG,"File sistem info: ----------- PRE SAVE"); 
-    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
-    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
-    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
- 
-    // Open dir folder
-    File dir = LittleFS.open("/");
-    // Cycle all the content
-    printDirectory(dir,0);
-    dir.close();
-  }
+  checkDisk(); // just for debug
+
   std::string fileName = std::string("/RaceData3.json");
   File raceFile = LittleFS.open(fileName.c_str(), "w");
   if (!raceFile) {
@@ -543,22 +667,8 @@ static void saveRace()
   serializeJson(raceJson, raceFile);
   raceFile.close();
 
-    {
-    unsigned int totalBytes = LittleFS.totalBytes();
-    unsigned int usedBytes = LittleFS.usedBytes();
-    unsigned int freeBytes  = totalBytes - freeBytes;
- 
-    ESP_LOGI(TAG,"File sistem info: ----------- SAVED"); 
-    ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes); 
-    ESP_LOGI(TAG,"Total space used: %d bytes\n",usedBytes);
-    ESP_LOGI(TAG,"Total space free: %d bytes\n",freeBytes);
- 
-    // Open dir folder
-    File dir = LittleFS.open("/");
-    // Cycle all the content
-    printDirectory(dir,0);
-    dir.close();
-  }
+  checkDisk(); // just for debug
+
 }
 
 void vTaskRaceDB( void *pvParameters )
