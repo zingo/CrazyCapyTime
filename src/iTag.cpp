@@ -99,6 +99,8 @@ class participantData {
     time_t getCurrentLapStart() {return lapsData.at(laps).getLapStart();}
     void setCurrentLapStart(time_t timeSinceRaceStart) {lapsData.at(laps).setLapStart(timeSinceRaceStart);}
     time_t getCurrentLastSeen() {return lapsData.at(laps).getLastSeen();}
+    time_t getCurrentLastSeenSinceRaceStart() {return lapsData.at(laps).getLapStart() + lapsData.at(laps).getLastSeen();}
+
     void setCurrentLastSeen(time_t timeSinceLapStart) {lapsData.at(laps).setLastSeen(timeSinceLapStart);}
     void setCurrentLap(time_t timeSinceRaceStart,time_t timeSinceLapStart) {lapsData.at(laps).setLap(timeSinceRaceStart,timeSinceLapStart);}
 
@@ -122,35 +124,6 @@ class participantData {
       handleGFX_isValid = valid;
     }
 
-    //void saveGUIObjects(lv_obj_t * chart, lv_chart_series_t * series) {
-      //lapsChart = chart;
-      //lapsSeries = series;
-      //updateChart();
-    //}
-    void updateChart()
-    {
-      /*
-      for(int lap=0;lap<=DRAW_MAX_LAPS_IN_CHART;lap++)
-      {
-        if (lap<=laps) {
-          lapData theLap = getLap(lap);
-          //two "dots" per lap, lap start and "last seen" e.g. left aidstation
-          lapsSeries->x_points[2*lap] = theLap.getLapStart();
-          lapsSeries->y_points[2*lap] = lap;
-          lapsSeries->x_points[2*lap+1] = theLap.getLapStart() + theLap.getLastSeen() ;
-          lapsSeries->y_points[2*lap+1] = lap;
-        }
-        else {
-          lapsSeries->x_points[2*lap] = LV_CHART_POINT_NONE;
-          lapsSeries->y_points[2*lap] = LV_CHART_POINT_NONE;
-          lapsSeries->x_points[2*lap+1] = LV_CHART_POINT_NONE;
-          lapsSeries->y_points[2*lap+1] = LV_CHART_POINT_NONE;
-        }
-      }
-      lv_chart_refresh(lapsChart); //Required after direct set
-      */
-    }
-
   private:
     std::string name;     // Participant name
     uint32_t laps;
@@ -160,9 +133,6 @@ class participantData {
     bool handleGFX_isValid;
     bool inRace;
     bool updated; // use to trigger GUI update
-    //GUI stuff
-    //lv_obj_t * lapsChart;
-    //lv_chart_series_t * lapsSeries; 
 };
 
 
@@ -177,11 +147,11 @@ class iTag {
   
     participantData participant;
     iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
-    bool UpdateParticipantDataInGFX();
+    bool UpdateParticipantStatusInGUI();
+    bool UpdateParticipantStatsInGUI();
     void reset();
 
     //void saveGUIObjects(lv_obj_t * ledColor0, lv_obj_t * ledColor1, lv_obj_t * labelName, lv_obj_t * labelDist, lv_obj_t * labelLaps, lv_obj_t * labelTime, lv_obj_t * labelConnStatus, /*lv_obj_t * labelBatterySym,*/ lv_obj_t * labelBat);
-    void updateGUI(void);
     int getRSSI() {return RSSI;}
     void setRSSI(int val) {RSSI=val;}
   private:
@@ -269,19 +239,19 @@ static bool UpdateParticipantToGFX(uint32_t handleDB, participantData &participa
   return xReturned;
 }
 
-static bool UpdateParticipantStatusInGFX(iTag &tag)
+bool iTag::UpdateParticipantStatusInGUI()
 {
-  if(tag.participant.isHandleGFXValid())
+  if(participant.isHandleGFXValid())
   {
     msg_GFX msg;
     msg.UpdateStatus.header.msgType = MSG_GFX_UPDATE_USER_STATUS;
-    msg.UpdateStatus.handleGFX = tag.participant.getHandleGFX();
+    msg.UpdateStatus.handleGFX = participant.getHandleGFX();
 
-    if (tag.active)
+    if (active)
     {
-      if (tag.connected) {
-        if (tag.participant.getTimeSinceLastSeen() < 20) {
-          msg.UpdateStatus.connectionStatus = tag.getRSSI();
+      if (connected) {
+        if (participant.getTimeSinceLastSeen() < 20) {
+          msg.UpdateStatus.connectionStatus = getRSSI();
         }
         else {
           msg.UpdateStatus.connectionStatus = 1;
@@ -295,9 +265,8 @@ static bool UpdateParticipantStatusInGFX(iTag &tag)
           msg.UpdateStatus.connectionStatus = 0;
     }
 
-    msg.UpdateStatus.connectionStatus = tag.getRSSI();
-    msg.UpdateStatus.battery = tag.battery;
-    msg.UpdateStatus.inRace = tag.participant.getInRace();
+    msg.UpdateStatus.battery = battery;
+    msg.UpdateStatus.inRace = participant.getInRace();
 
     //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
     //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
@@ -313,7 +282,7 @@ static bool UpdateParticipantStatusInGFX(iTag &tag)
 }
 
 
-bool iTag::UpdateParticipantDataInGFX()
+bool iTag::UpdateParticipantStatsInGUI()
 {
   if(participant.isHandleGFXValid())
   {
@@ -324,8 +293,8 @@ bool iTag::UpdateParticipantDataInGFX()
 
     msg.UpdateUserData.distance = participant.getLapCount()* RACE_DISTANCE_LAP;
     msg.UpdateUserData.laps = participant.getLapCount();
-    msg.UpdateUserData.lastlaptime = participant.getCurrentLapStart();
-
+    msg.UpdateUserData.lastLapTime = participant.getCurrentLapStart();
+    msg.UpdateUserData.lastSeenTime = participant.getCurrentLastSeenSinceRaceStart();
     if (active)
     {
       if (connected) {
@@ -344,8 +313,9 @@ bool iTag::UpdateParticipantDataInGFX()
           msg.UpdateUserData.connectionStatus = 0;
     }
 
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
-    //            msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime,msg.Update.connectionStatus);
+    ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
+                msg.UpdateUserData.header.msgType, msg.UpdateUserData.handleGFX, msg.UpdateUserData.distance, msg.UpdateUserData.laps,
+                msg.UpdateUserData.lastLapTime, msg.UpdateUserData.connectionStatus);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
     return xReturned;
@@ -383,11 +353,6 @@ void iTag::reset()
     active = true;
     participant.setUpdated(); // will trigger GUI update later
   }
-}
-
-void iTag::updateGUI(void)
-{
-  UpdateParticipantDataInGFX();
 }
 
 static uint32_t longestNonSeen = 0; // debug
@@ -434,8 +399,7 @@ void refreshTagGUI()
 // TODO send update msg to GUI
 
     if (iTags[j].participant.isUpdated()) {
-      iTags[j].updateGUI();
-    //  iTags[j].participant.updateChart(); //TODO don't update all, only what is needed
+      iTags[j].UpdateParticipantStatsInGUI();
     }
 
    // if(iTags[j].active) {
@@ -731,7 +695,7 @@ void vTaskRaceDB( void *pvParameters )
               }
 
               iTags[j].participant.setUpdated(); // Make it redraw when GUI loop looks at it
-              UpdateParticipantStatusInGFX(iTags[j]);
+              iTags[j].UpdateParticipantStatusInGUI();
               
               if (!iTags[j].active) {
                 ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
@@ -770,7 +734,7 @@ void vTaskRaceDB( void *pvParameters )
               }
               iTags[j].participant.setTimeSinceLastSeen(0);
               iTags[j].active = true;
-              UpdateParticipantStatusInGFX(iTags[j]);
+              iTags[j].UpdateParticipantStatusInGUI();
             }
           }          
           break;
@@ -792,7 +756,7 @@ void vTaskRaceDB( void *pvParameters )
             // In race changed, update
             iTags[handleDB].participant.setInRace(msg.UpdateParticipantRaceStatus.inRace);
             // Send update to GUI
-            UpdateParticipantStatusInGFX(iTags[msg.UpdateParticipantRaceStatus.handleDB]);
+            iTags[handleDB].UpdateParticipantStatusInGUI();
           }
           break;
         }

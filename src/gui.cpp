@@ -76,6 +76,7 @@ static lv_obj_t *labelRaceTime;
 
 static lv_obj_t *tabRace;
 static lv_obj_t *tabParticipants;
+static lv_obj_t * chartLaps;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
 static const lv_font_t * fontTag = LV_FONT_DEFAULT;
@@ -86,6 +87,7 @@ static const lv_font_t * fontTime = LV_FONT_DEFAULT;
 class guiParticipant {
   public:
     uint32_t handleDB; // save handle to use in the RaceDB messages (supplied ti RaceDB)
+    uint32_t laps;     // sevaed so we can detect new laps and draw them in the graph
 
     // ParticipantTab
     lv_obj_t * labelToRace;
@@ -100,8 +102,7 @@ class guiParticipant {
     lv_obj_t * labelBattery;
 
     // Graph
-    lv_obj_t * lapsChart;
-    lv_chart_series_t * lapsSeries;
+    lv_chart_series_t * seriesLaps;
 
     bool inRace;
     // RaceTab (only valid if inRace is true)
@@ -118,6 +119,7 @@ class guiParticipant {
 static guiParticipant guiParticipants[ITAG_COUNT]; // TODO Could be dynamic
 static uint32_t globalHandleGFX = 0;  // We use the index into guiParticipants as a handle we will give to others like RaceDB
 
+static void gfxClearParticipantData();
 
 static void btnTime_event_cb(lv_event_t * e)
 {
@@ -129,6 +131,7 @@ static void btnTime_event_cb(lv_event_t * e)
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
           startRaceCountdown();
+          gfxClearParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
     }
 
@@ -506,8 +509,13 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
 
   lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
+  lv_chart_series_t * seriesLaps = lv_chart_add_series(chartLaps, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
+
   // All well so far, lets update the internal struct with the info.
   guiParticipants[handleGFX].handleDB = msgParticipant.handleDB;
+  guiParticipants[handleGFX].laps = 0;
+  guiParticipants[handleGFX].seriesLaps = seriesLaps;
+  guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].ledColor0 = ledColor0;
   guiParticipants[handleGFX].ledColor1 = ledColor1;
@@ -529,37 +537,109 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   return true;
 }
 
+// Update Graphs 
+// TODO handle subtraction of lap
+
+static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time)
+{
+
+  ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(  handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
+
+  guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = lap;
+  guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = lap;
+  lv_chart_refresh(chartLaps); //Required after direct set
+}
+
+static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time)
+{
+  ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
+
+  guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = lap;
+  lv_chart_refresh(chartLaps); //Required after direct set
+}
+
+static void gfxClearParticipantData()
+{
+  ESP_LOGI(TAG,"gfxClearParticipantData()");
+  for(int handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
+  {
+    guiParticipants[handleGFX].laps = 0;
+    for(int lap = 0; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
+    {
+      guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+    }
+  }
+  lv_chart_refresh(chartLaps); //Required after direct set
+}
+
+
+// Update Race info (Laps/Dist)
+
 static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 {
   uint32_t handleGFX = msg.handleGFX;
-  lv_label_set_text_fmt(guiParticipants[handleGFX].labelDist, "%4.3fkm",msg.distance/1000.0);
-  lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
-  struct tm timeinfo;
-  time_t tt = msg.lastlaptime;
-  localtime_r(&tt, &timeinfo);
-  lv_label_set_text_fmt(guiParticipants[handleGFX].labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
 
-  std::string conn;
-  if (msg.connectionStatus == 1)
-  {
-    conn = std::string(LV_SYMBOL_EYE_CLOSE);
-  }
-  else if (msg.connectionStatus == 0)
-  {
-    conn = std::string("");
+    gfxUpdateInRace(msg.inRace, handleGFX);
 
-  } else {
-    conn = std::string(LV_SYMBOL_EYE_OPEN);
-  }
-  
-  lv_label_set_text(guiParticipants[handleGFX].labelConnectionStatus, conn.c_str());
+   ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d",guiParticipants[handleGFX].laps,msg.laps);
 
-  if (guiParticipants[handleGFX].inRace) {
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceDist, "%4.3fkm",msg.distance/1000.0);
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS),  (msg.laps*RACE_DISTANCE_LAP)/1000.0;
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
-    lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
-  }
+    if (msg.laps > guiParticipants[handleGFX].laps) {
+      // new lap
+      ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d New lap!!!!",guiParticipants[handleGFX].laps,msg.laps);
+      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
+    }
+    else if (msg.laps < guiParticipants[handleGFX].laps) {
+      // lap deleted
+      // TODO remove from graph
+    }
+    
+    guiParticipants[handleGFX].laps = msg.laps;
+
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelDist, "%4.3fkm",msg.distance/1000.0);
+    if (guiParticipants[handleGFX].inRace) {
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceDist, "%4.3fkm",msg.distance/1000.0);
+    }
+
+
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+    if (guiParticipants[handleGFX].inRace) {
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+    }
+
+    struct tm timeinfo;
+    time_t tt = msg.lastLapTime;
+    localtime_r(&tt, &timeinfo);
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+    if (guiParticipants[handleGFX].inRace) {
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
+    }
+
+    std::string conn;
+    if (msg.connectionStatus == 1)
+    {
+      conn = std::string(LV_SYMBOL_EYE_CLOSE);
+    }
+    else if (msg.connectionStatus == 0)
+    {
+      conn = std::string("");
+
+    } else {
+      // if msg.connectionStatus < 0 (as it should) it is the RSSI value of the tag
+      gfxUpdateParticipantChartLastSeen(handleGFX, msg.laps, msg.lastSeenTime);
+      conn = std::string(LV_SYMBOL_EYE_OPEN);
+      // TODO plot RSSI??
+    }
+    
+    lv_label_set_text(guiParticipants[handleGFX].labelConnectionStatus, conn.c_str());
+    if (guiParticipants[handleGFX].inRace) {
+      lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
+    }
 }
 
 static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
@@ -578,16 +658,17 @@ static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
     conn = std::string("");
 
   } else {
+    // if msg.connectionStatus < 0 (as it should) it is the RSSI value of the tag
     conn = std::string(LV_SYMBOL_EYE_OPEN);
   }
   
   lv_label_set_text(guiParticipants[handleGFX].labelConnectionStatus, conn.c_str());
-  if(msg.battery >= 0 && msg.battery <=100) {
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelBattery, "%3d%%",msg.battery);
-  }
-
   if (guiParticipants[handleGFX].inRace) {
     lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
+  }
+
+  if(msg.battery >= 0 && msg.battery <=100) {
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelBattery, "%3d%%",msg.battery);
   }
 }
 
@@ -625,7 +706,7 @@ static uint32_t gfxAddParticipant(msg_AddParticipant &msgParticipant)
 //  }
   gfxAddUserToParticipants(tabParticipants, msgParticipant, handleGFX);
   gfxUpdateInRace(msgParticipant.inRace, handleGFX);
-
+  gfxUpdateParticipantChartNewLap(handleGFX,0,0);
   globalHandleGFX++;
   if(handleGFX >= ITAG_COUNT) {
     ESP_LOGI(TAG,"Added all Users handleGFX:%d from MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d --------- COME ON LETS PARTY!!!!!!!!!!!!!!!!!!", handleGFX,
@@ -660,29 +741,21 @@ static void createGUITabRaceExtra(lv_obj_t * parent)
   lv_obj_set_style_pad_row(parent,5,0);
   lv_obj_set_style_pad_all(parent, 5,0);
 
-  lv_obj_t * chart;
-  chart = lv_chart_create(parent);
-  lv_obj_align_to(chart, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  lv_obj_set_size(chart, LV_PCT(100), 400);
-  lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER);
+  chartLaps = lv_chart_create(parent);
+  lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+  lv_obj_set_size(chartLaps, LV_PCT(100), 300);
+  lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
   
   const uint32_t ydiv_num = 8;
   const uint32_t xdiv_num = 9;
-  lv_chart_set_div_line_count(chart, 9, 10);
-//  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
-//  lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
+  lv_chart_set_div_line_count(chartLaps, 9, 10);
+//  lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
+//  lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
 
-  lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_X, 0, 60*60*9);
-  lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 8);
+  lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, 60*60*9);
+  lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, 8);
 
-  lv_chart_set_point_count(chart, (DRAW_MAX_LAPS_IN_CHART*2*ITAG_COUNT));
-
-
-  //TODO for(int i=0; i<ITAG_COUNT; i++)
-  //{
-  //  lv_chart_series_t * series = lv_chart_add_series(chart, lv_color_hex(iTags[i].color0), LV_CHART_AXIS_PRIMARY_Y);
-  //  iTags[i].participant.saveGUIObjects(chart, series);
-  //}
+  lv_chart_set_point_count(chartLaps, (DRAW_MAX_LAPS_IN_CHART*2*ITAG_COUNT));
 
   lv_obj_t * btnLoad = lv_btn_create(parent); 
   //lv_obj_align_to(btnLoad, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -809,14 +882,6 @@ void createGUI(void)
   lv_obj_center(labelRaceTime);
   lv_obj_add_style(labelRaceTime, &styleTime, 0);
 
-
-/*
-  labelRaceTime = lv_label_create(tab_btns);
-  lv_label_set_text(labelRaceTime, "00:00:00");
-  lv_obj_add_style(labelRaceTime, &styleTime, 0);
-  lv_obj_align_to(labelRaceTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 30, -20);
-*/
-
   tabRace = lv_tabview_add_tab(tv, "Race"); 
   tabParticipants = lv_tabview_add_tab(tv, LV_SYMBOL_LIST );
   lv_obj_t * t3 = lv_tabview_add_tab(tv, LV_SYMBOL_IMAGE );
@@ -921,7 +986,7 @@ void initLVGL()
     indev_drv.read_cb = lvgl_touchPadReadCallback;
     lv_indev_drv_register(&indev_drv);
 
-    createGUI();
+    createGUI(); // MUST be done before adding participants
     ESP_LOGI(TAG, "Setup GFX done");
   }
 }

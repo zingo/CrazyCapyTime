@@ -7,7 +7,7 @@ struct msgHeader
 
 struct msg_iTagDetected //TODO creat union see union msg_GFX for inspiration
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   time_t time;
   uint64_t address;
   int8_t RSSI;
@@ -18,7 +18,7 @@ struct msg_iTagDetected //TODO creat union see union msg_GFX for inspiration
 
 struct msg_AddParticipantResponse
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleDB;
   uint32_t handleGFX;
   bool wasOK;
@@ -26,7 +26,7 @@ struct msg_AddParticipantResponse
 
 struct msg_UpdateParticipantRaceStatus
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleDB;
   uint32_t handleGFX;
   bool inRace;         // Is the user in a race or not
@@ -34,7 +34,7 @@ struct msg_UpdateParticipantRaceStatus
 
 struct msg_UpdateParticipantLapCount
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleDB;
   uint32_t handleGFX;
   int32_t lapDiff;  //Value is added to lap negative values will result in a subtraction.
@@ -59,7 +59,7 @@ struct msg_Timer
 
 union msg_RaceDB
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
@@ -95,38 +95,43 @@ struct msg_AddParticipant
 // Used when loading or reconfig a user
 struct msg_UpdateParticipant
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleGFX;
   uint32_t color0;
   uint32_t color1;
   char name[PARTICIPANT_NAME_LENGTH+1]; // add one for nulltermination
-  bool inRace;
+  bool inRace; // Use inRace to move participant in/out of race table in GUI
 };
 
 // Sent now and then during a Race to update GUI
+// Special combination 
+// If laps is one more then last sent -> new lap is setup in GUI
+// LastSeenTime will be updated in graph if connectionStatus is <0 (connected)
 struct msg_UpdateParticipantData
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleGFX;
   uint32_t distance;
   uint32_t laps;
-  time_t lastlaptime;
+  time_t lastLapTime;  //seconds since start of Race, This is used with laps ONLY for newLap registration
+  time_t lastSeenTime; //seconds since start of Race, If this and laps is present this updates lastSeenTime values in graph
   int8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
+  bool inRace;   // Is participand in a race of not
 };
 
 // Sent when non race thing needs to update GUI
 struct msg_UpdateParticipantStatus
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   uint32_t handleGFX;
-  int8_t connectionStatus; //0 = not connected for long time, 1 not connected for short time  If <0 Connected now value is RSSI
-  int8_t battery;
-  bool inRace;
+  int8_t connectionStatus; //0 = not connected for long time, 1 = not connected for short time  If <0 Connected now value is RSSI
+  int8_t battery; // 0-100%
+  bool inRace; // Use inRace to move participant in/out of race table in GUI
 };
 
 union msg_GFX
 {
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct 
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   msg_AddParticipant AddUser;
   msg_UpdateParticipant UpdateUser;
   msg_UpdateParticipantData UpdateUserData;
