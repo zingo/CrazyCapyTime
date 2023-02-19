@@ -587,11 +587,11 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 
     gfxUpdateInRace(msg.inRace, handleGFX);
 
-   ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d",guiParticipants[handleGFX].laps,msg.laps);
+    //ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d",guiParticipants[handleGFX].laps,msg.laps);
 
     if (msg.laps > guiParticipants[handleGFX].laps) {
       // new lap
-      ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d New lap!!!!",guiParticipants[handleGFX].laps,msg.laps);
+      //ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d New lap!!!!",guiParticipants[handleGFX].laps,msg.laps);
       gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
     }
     else if (msg.laps < guiParticipants[handleGFX].laps) {
