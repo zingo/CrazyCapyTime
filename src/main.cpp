@@ -67,28 +67,59 @@ void initMessageQueues()
 
 }
 
+// Don't touch data, just send messages, can be used from any context
+void BroadcastRaceClear()
+{
+  msg_RaceDB msg;
+  msg.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msg.Broadcast.RaceStart.header.msgType);
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+
+  msg_GFX msgGFX;
+  msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msgGFX.Broadcast.RaceStart.header.msgType);
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+}
+
+// Don't touch data, just send messages, can be used from any context
+void BroadcastRaceStart(time_t raceStartTime)
+{
+  msg_RaceDB msg;
+  msg.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
+  msg.Broadcast.RaceStart.startTime = raceStartTime;
+  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+
+
+  msg_GFX msgGFX;
+  msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
+  msgGFX.Broadcast.RaceStart.startTime = raceStartTime;
+  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+  
+}
+
+
 void startRaceCountdown()
 {
   rtc.setTime(0,0);  // TODO remove, for now EPOCH is used for the countdown as RACE_COUNTDOWN-EPOCH
+  //time_t raceStartTime = 0; // TODO remove, for now EPOCH is used for the countdown as RACE_COUNTDOWN-EPOCH
   raceStartIn = RACE_COUNTDOWN; //seconds
   raceOngoing = false;
 
-  msg_RaceDB msg;
-  msg.StartRace.header.msgType = MSG_ITAG_START_RACE;  // We send this to "Clear data" before countdown, this would be what a user expect
-  //ESP_LOGI(TAG,"Send: MSG_ITAG_START_RACE MSG:0x%x handleDB:0x%08x", msg.StartRace.header.msgType);
-  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+  BroadcastRaceClear();
+  //BroadcastRaceStart(raceStartTime);
 }
 
 void startRace()
 {
   rtc.setTime(0,0);  // TODO remove when we have RTC HW  and save reace start instead
+  time_t raceStartTime = 0; //TODO remove when we have RTC HW  and save reace start instead
   raceStartIn = 0;
   raceOngoing = true;
 
-  msg_RaceDB msg;
-  msg.StartRace.header.msgType = MSG_ITAG_START_RACE;  // We send this to "Clear data" before countdown, this would be what a user expect
-  //ESP_LOGI(TAG,"Send: MSG_ITAG_START_RACE MSG:0x%x handleDB:0x%08x", msg.StartRace.header.msgType);
-  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  //TODO figure out best way to handle problem here
+  //BroadcastRaceClear();
+  BroadcastRaceStart(raceStartTime);
 }
 
 void showHeapInfo()

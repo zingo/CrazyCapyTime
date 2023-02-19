@@ -27,4 +27,8 @@ extern ESP32Time rtc;
 extern uint32_t raceStartIn;
 extern bool raceOngoing;
 
+// Broadcast...() - Don't touch data, just send messages, can be used from any context
+void BroadcastRaceClear();
+void BroadcastRaceStart(time_t raceStartTime);
+
 void startRaceCountdown();

@@ -357,15 +357,24 @@ void iTag::reset()
 
 static uint32_t longestNonSeen = 0; // debug
 
-static void startRaceiTags()
+static void raceCleariTags()
 {
-  tm timeNow = rtc.getTimeStruct();
-  time_t raceStartTime = mktime (&timeNow); //TODO raceStartTime should be something "global"
-
   longestNonSeen = 0;
   for(int j=0; j<ITAG_COUNT; j++)
   {
     iTags[j].participant.clearLaps();
+    iTags[j].participant.setCurrentLap(0,0);
+    iTags[j].participant.setUpdated();
+  }
+  refreshTagGUI();
+}
+
+
+static void raceStartiTags(time_t raceStartTime)
+{
+  longestNonSeen = 0;
+  for(int j=0; j<ITAG_COUNT; j++)
+  {
     iTags[j].participant.setCurrentLap(raceStartTime,0);
     iTags[j].participant.setUpdated();
   }
@@ -482,11 +491,27 @@ static void loadRace()
     return;
   }
   //ESP_LOGI(TAG,"fileformatversion=%s (OK)",version.c_str());
+
   time_t raceStart = raceJson["start"];
   uint32_t raceDist = raceJson["distance"];
   uint32_t raceLaps = raceJson["laps"];
   double raceLapDist = raceJson["lapsdistance"];
   uint32_t raceTagCount = raceJson["tags"];
+
+  // Start with clearing UI
+
+  msg_GFX msg;
+  msg.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msg.Broadcast.RaceStart.header.msgType);
+  xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+
+  // And Start a race at "correct time" (from file)
+
+  msg.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
+  msg.Broadcast.RaceStart.startTime = raceStart;
+  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+  xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+
   if ( raceTagCount > ITAG_COUNT) {
     // TODO make ITAG_COUNT database dynamic? We have like 8MB ram anyway :)
     ESP_LOGW(TAG,"tags=%d is larger then number of supported tags: %d (will only read %d first tags SORRY)",raceTagCount, ITAG_COUNT,ITAG_COUNT);
@@ -801,18 +826,25 @@ void vTaskRaceDB( void *pvParameters )
           saveRace();
           break;
         }
-        case MSG_ITAG_START_RACE:
-        {
-          ESP_LOGI(TAG,"Received: MSG_ITAG_START_RACE MSG:0x%x", msg.StartRace.header.msgType);
-          startRaceiTags();
-          break;
-        }
         case MSG_ITAG_TIMER_2000:
         {
           // update GUI and handle the check if "long time no see" and "disconnect" status
           // This is used to not accedently count a lap in "too short laps"
           refreshTagGUI();
           //rtc.setTime(rtc.getEpoch()+30,0); //DEBUG fake faster time for testing REMOVE
+          break;
+        }
+        // Broadcast Messages
+        case MSG_RACE_START:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+          raceStartiTags(msg.Broadcast.RaceStart.startTime);
+          break;
+        }
+        case MSG_RACE_CLEAR:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+          raceCleariTags();
           break;
         }
         default:

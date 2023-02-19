@@ -119,7 +119,7 @@ class guiParticipant {
 static guiParticipant guiParticipants[ITAG_COUNT]; // TODO Could be dynamic
 static uint32_t globalHandleGFX = 0;  // We use the index into guiParticipants as a handle we will give to others like RaceDB
 
-static void gfxClearParticipantData();
+static void gfxClearAllParticipantData();
 
 static void btnTime_event_cb(lv_event_t * e)
 {
@@ -131,7 +131,7 @@ static void btnTime_event_cb(lv_event_t * e)
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
           startRaceCountdown();
-          gfxClearParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
+          gfxClearAllParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
     }
 
@@ -561,13 +561,13 @@ static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, 
   lv_chart_refresh(chartLaps); //Required after direct set
 }
 
-static void gfxClearParticipantData()
+static void gfxClearAllParticipantData()
 {
-  ESP_LOGI(TAG,"gfxClearParticipantData()");
-  for(int handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
+  ESP_LOGI(TAG,"gfxClearAllParticipantData()");
+  for(uint32_t handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
   {
     guiParticipants[handleGFX].laps = 0;
-    for(int lap = 0; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
+    for(uint32_t lap = 0; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
     {
       guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
@@ -578,6 +578,19 @@ static void gfxClearParticipantData()
   lv_chart_refresh(chartLaps); //Required after direct set
 }
 
+static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
+{
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d)",handleGFX,fromLap);
+
+  for(uint32_t lap = fromLap; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
+  {
+    guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
+    guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
+    guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
+    guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+  }
+  lv_chart_refresh(chartLaps); //Required after direct set
+}
 
 // Update Race info (Laps/Dist)
 
@@ -591,12 +604,11 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 
     if (msg.laps > guiParticipants[handleGFX].laps) {
       // new lap
-      //ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d New lap!!!!",guiParticipants[handleGFX].laps,msg.laps);
       gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
     }
     else if (msg.laps < guiParticipants[handleGFX].laps) {
       // lap deleted
-      // TODO remove from graph
+      gfxClearParticipantData(handleGFX, msg.laps);
     }
     
     guiParticipants[handleGFX].laps = msg.laps;
@@ -628,7 +640,6 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     else if (msg.connectionStatus == 0)
     {
       conn = std::string("");
-
     } else {
       // if msg.connectionStatus < 0 (as it should) it is the RSSI value of the tag
       gfxUpdateParticipantChartLastSeen(handleGFX, msg.laps, msg.lastSeenTime);
@@ -1044,7 +1055,20 @@ void loopHandlLVGL()
 
         break;
       }
-      default:
+        // Broadcast Messages
+        case MSG_RACE_START:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+          // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
+          break;
+        }
+        case MSG_RACE_CLEAR:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+          gfxClearAllParticipantData();
+          break;
+        }
+        default:
         ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
         //break;
     }

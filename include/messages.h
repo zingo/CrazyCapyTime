@@ -5,6 +5,36 @@ struct msgHeader
   uint32_t msgType; //Must be first in all msg, used to interpertate and select rest of struct
 };
 
+
+// ##################### Send to more the one queue e.g. Broadcast type of messages
+
+// Sent before race start and before loading a race
+struct msg_RaceClear
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+};
+
+// Sent when race start
+struct msg_RaceStart
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  time_t startTime;
+};
+
+union msg_BroadcastMessages
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  msg_RaceClear RaceClear;
+  msg_RaceStart RaceStart;
+
+};
+
+#define MSG_RACE_CLEAR        0xffff0000 //msg_RaceClear queueRaceDB, queueGFX
+#define MSG_RACE_START        0xffff0001 //msg_RaceStart queueRaceDB, queueGFX
+
+
+// ##################### Send to queueBTConnect
+
 struct msg_iTagDetected //TODO creat union see union msg_GFX for inspiration
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
@@ -15,6 +45,9 @@ struct msg_iTagDetected //TODO creat union see union msg_GFX for inspiration
 };
 
 #define MSG_ITAG_CONFIG                  0x1000 //msg_iTagDetected queueBTConnect
+
+
+// ##################### Send to queueRaceDB
 
 struct msg_AddParticipantResponse
 {
@@ -46,10 +79,7 @@ struct msg_LoadSaveRace
   // TODO Maybe we want a filename here later :)
 };
 
-struct msg_StartRace
-{
-  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
-};
+
 
 // Send whenever a timer expiered
 struct msg_Timer
@@ -60,6 +90,7 @@ struct msg_Timer
 union msg_RaceDB
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  msg_BroadcastMessages Broadcast;
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
@@ -67,7 +98,6 @@ union msg_RaceDB
   msg_LoadSaveRace LoadRace;
   msg_LoadSaveRace SaveRace;
   msg_Timer Timer;
-  msg_StartRace StartRace;
 };
 
 // TODO this chould be class enum to avoid typo misstakes
@@ -78,8 +108,11 @@ union msg_RaceDB
 #define MSG_ITAG_UPDATE_USER_LAP_COUNT   0x2004 //msg_UpdateParticipantRaceStatus queueRaceDB
 #define MSG_ITAG_LOAD_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
 #define MSG_ITAG_SAVE_RACE               0x2006 //msg_LoadSaveRace queueRaceDB
-#define MSG_ITAG_START_RACE              0x2007 //msg_StartRace queueRaceDB
-#define MSG_ITAG_TIMER_2000              0x2008 //msg_Timer queueRaceDB
+#define MSG_ITAG_TIMER_2000              0x2007 //msg_Timer queueRaceDB
+
+
+// ##################### Send to queueGFX
+
 
 // Startup setup of all participants in GUI will respond with MSG_ITAG_GFX_ADD_USER_RESPONSE containing the handleGFX that is later used
 struct msg_AddParticipant
@@ -129,15 +162,17 @@ struct msg_UpdateParticipantStatus
   bool inRace; // Use inRace to move participant in/out of race table in GUI
 };
 
+
+
 union msg_GFX
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  msg_BroadcastMessages Broadcast;
   msg_AddParticipant AddUser;
   msg_UpdateParticipant UpdateUser;
   msg_UpdateParticipantData UpdateUserData;
   msg_UpdateParticipantStatus UpdateStatus;
 };
-
 
 #define MSG_GFX_ADD_USER           0x3000 //msg_AddParticipant queueGFX
 #define MSG_GFX_UPDATE_USER        0x3001 //msg_UpdateParticipant queueGFX
