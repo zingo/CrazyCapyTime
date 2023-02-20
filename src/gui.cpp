@@ -19,10 +19,11 @@
  * #define LV_USE_PERF_MONITOR 1
  ******************************************************************************/
 #include <string>
+#include <cstdlib>
+
 #include "common.h"
 #include <lvgl.h>
-/*******************************************************************************
- ******************************************************************************/
+
 #include <Arduino_GFX_Library.h>
 
 #include "gui.h"
@@ -77,6 +78,7 @@ static lv_obj_t *labelRaceTime;
 static lv_obj_t *tabRace;
 static lv_obj_t *tabParticipants;
 static lv_obj_t * chartLaps;
+static lv_obj_t * chartRSSI;
 
 static const lv_font_t * fontNormal = LV_FONT_DEFAULT;
 static const lv_font_t * fontTag = LV_FONT_DEFAULT;
@@ -98,11 +100,11 @@ class guiParticipant {
     lv_obj_t * labelLaps;
     lv_obj_t * labelTime;
     lv_obj_t * labelConnectionStatus;
-    //lv_obj_t * labelBatterySymbol;
     lv_obj_t * labelBattery;
 
     // Graph
     lv_chart_series_t * seriesLaps;
+    lv_chart_series_t * seriesRSSI;
 
     bool inRace;
     // RaceTab (only valid if inRace is true)
@@ -510,11 +512,13 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_chart_series_t * seriesLaps = lv_chart_add_series(chartLaps, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
+  lv_chart_series_t * seriesRSSI = lv_chart_add_series(chartRSSI, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
 
   // All well so far, lets update the internal struct with the info.
   guiParticipants[handleGFX].handleDB = msgParticipant.handleDB;
   guiParticipants[handleGFX].laps = 0;
   guiParticipants[handleGFX].seriesLaps = seriesLaps;
+  guiParticipants[handleGFX].seriesRSSI = seriesRSSI;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].ledColor0 = ledColor0;
@@ -554,12 +558,29 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
 
 static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time)
 {
-  ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
+  //ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
 
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
   guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = lap;
   lv_chart_refresh(chartLaps); //Required after direct set
 }
+
+static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
+{
+  if (guiParticipants[handleGFX].seriesRSSI == nullptr) {
+    return;
+  }
+
+  if (RSSI >= -100 && RSSI < 0) {
+    //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,100 - std::abs(RSSI));
+    lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, 100 - std::abs(RSSI));
+  }
+  else {
+    //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,0);
+    lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, 0);
+  }
+}
+
 
 static void gfxClearAllParticipantData()
 {
@@ -567,15 +588,9 @@ static void gfxClearAllParticipantData()
   for(uint32_t handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
   {
     guiParticipants[handleGFX].laps = 0;
-    for(uint32_t lap = 0; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
-    {
-      guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
-      guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
-      guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
-      guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
-    }
+    lv_chart_set_all_value(chartLaps, guiParticipants[handleGFX].seriesLaps, LV_CHART_POINT_NONE);
+    //Keep this ??  lv_chart_set_all_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, LV_CHART_POINT_NONE)
   }
-  lv_chart_refresh(chartLaps); //Required after direct set
 }
 
 static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
@@ -593,7 +608,6 @@ static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
 }
 
 // Update Race info (Laps/Dist)
-
 static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 {
   uint32_t handleGFX = msg.handleGFX;
@@ -646,11 +660,12 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
       conn = std::string(LV_SYMBOL_EYE_OPEN);
       // TODO plot RSSI??
     }
-    
+
     lv_label_set_text(guiParticipants[handleGFX].labelConnectionStatus, conn.c_str());
     if (guiParticipants[handleGFX].inRace) {
       lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
     }
+    gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
 }
 
 static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
@@ -681,6 +696,8 @@ static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
   if(msg.battery >= 0 && msg.battery <=100) {
     lv_label_set_text_fmt(guiParticipants[handleGFX].labelBattery, "%3d%%",msg.battery);
   }
+
+  gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
 }
 
 // updated same fields as gfxAddParticipant() but without creating a new 
@@ -790,6 +807,36 @@ static void createGUITabRaceExtra(lv_obj_t * parent)
 
 }
 
+static void createGUITabRSSI(lv_obj_t * parent)
+{
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,5,0);
+  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_all(parent, 5,0);
+
+  chartRSSI = lv_chart_create(parent);
+  lv_obj_align_to(chartRSSI, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+  lv_obj_set_size(chartRSSI, LV_PCT(100), LV_PCT(100));
+  lv_chart_set_type(chartRSSI, LV_CHART_TYPE_LINE);
+  
+  const uint32_t ydiv_num = 8;
+  const uint32_t xdiv_num = 9;
+  lv_chart_set_div_line_count(chartRSSI, 10, 10);
+//  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
+//  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
+    
+    lv_obj_set_style_size(chartRSSI, 0, LV_PART_INDICATOR); // Do not display points on the data
+
+
+#define RSSI_CHART_POINTS 780
+
+  //lv_chart_set_range(chartRSSI, LV_CHART_AXIS_PRIMARY_X, 0, RSSI_CHART_POINTS);
+  lv_chart_set_range(chartRSSI, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+  lv_chart_set_point_count(chartRSSI, RSSI_CHART_POINTS);
+
+  lv_chart_set_update_mode(chartRSSI, LV_CHART_UPDATE_MODE_SHIFT);
+}
+
 void createGUI(void)
 {
   static lv_obj_t * tabView;
@@ -896,10 +943,12 @@ void createGUI(void)
   tabRace = lv_tabview_add_tab(tabView, "Race"); 
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
   lv_obj_t * tab3 = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
+  lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
   createGUITabRaceExtra(tab3);
+  createGUITabRSSI(tab4);
 }
 
 
