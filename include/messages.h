@@ -163,7 +163,6 @@ struct msg_UpdateParticipantStatus
 };
 
 
-
 union msg_GFX
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct

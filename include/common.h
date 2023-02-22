@@ -22,6 +22,7 @@ extern ESP32Time rtc;
 #define MINIMUM_LAP_TIME_IN_SECONDS ((170*RACE_DISTANCE_LAP)/1000)
 //#define MINIMUM_LAP_TIME_IN_SECONDS 60
 
+#define LAP_UPDATED_GRACE_PERIOD 30 // If we get a stronger RSSI signal during this time in seconds after a inital detection the lap time is updated.
 
 #define RACE_COUNTDOWN 15
 extern uint32_t raceStartIn;

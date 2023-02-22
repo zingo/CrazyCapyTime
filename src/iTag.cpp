@@ -48,7 +48,7 @@ class lapData {
 
 class participantData {
   public:
-    participantData(): name("Name"), laps(0), timeSinceLastSeen(0) { handleGFX_isValid = false;  inRace = false; updated = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
+    participantData(): name("Name"), laps(0), timeCurrentLapFirstDetected(0), timeSinceLastSeen(0) { handleGFX_isValid = false;  inRace = false; updated = false; lapsData.resize(MAX_SAVED_LAPS); clearLaps(); }
     std::string getName() {return name;}
     void setName(std::string inName) {name = inName;}
     uint32_t getLapCount() {return laps;}
@@ -63,6 +63,7 @@ class participantData {
     // usefull when loading a lap and lapstart is not "now"
     bool nextLap(time_t lapStart,time_t lastSeen)
     {
+      timeCurrentLapFirstDetected = lapStart;
       if ((laps + 1) < (MAX_SAVED_LAPS)) {
         laps++;
         setCurrentLap(lapStart, lastSeen);
@@ -80,15 +81,24 @@ class participantData {
     }
 
     // usefull for triggering a new lap "now" (during race)
-    bool nextLap()
+    bool nextLap(time_t newLapTime)
     {
-      tm timeNow = rtc.getTimeStruct();
-      time_t newLapTime = mktime(&timeNow);
       return nextLap(newLapTime, 0);
+    }
+
+    // Called when we clsoe to a new lap get stringer RSSI so we assume the new lap is "now" instead of a few seconds ago
+    // This is used to get a closer lap time to the unit and try to avoid saving early BT detections.
+    // Used together with bestRSSInearNewLap
+    void updateLapTagIsCloser(time_t newLapTime)
+    {
+      setCurrentLap(newLapTime, 0);
+      setUpdated();
+      refreshTagGUI();
     }
 
     void clearLaps() {
       laps = 0;
+      timeCurrentLapFirstDetected = 0;
       timeSinceLastSeen = 0;
       for (lapData& lap : lapsData) {
         lap.setLap(0,0);
@@ -96,6 +106,11 @@ class participantData {
     }
 
     lapData& getLap(uint32_t lap) { return lapsData.at(lap);}
+
+    time_t getCurrentLapFirstDetected() {return timeCurrentLapFirstDetected;}
+    int8_t getBestRSSInearNewLap() {return bestRSSInearNewLap;}
+    void setBestRSSInearNewLap(int8_t newRSSI) {bestRSSInearNewLap = newRSSI;}
+
     time_t getCurrentLapStart() {return lapsData.at(laps).getLapStart();}
     void setCurrentLapStart(time_t timeSinceRaceStart) {lapsData.at(laps).setLapStart(timeSinceRaceStart);}
     time_t getCurrentLastSeen() {return lapsData.at(laps).getLastSeen();}
@@ -127,6 +142,8 @@ class participantData {
   private:
     std::string name;     // Participant name
     uint32_t laps;
+    time_t timeCurrentLapFirstDetected; // First time in this lap the tag is ever detected, getCurrentLapStart() might get updated to a LAP_UPDATED_GRACE_PERIOD seconds after detection if RSSI get "stronger".
+    int8_t bestRSSInearNewLap; // Updated LAP_UPDATED_GRACE_PERIOD seconds after a new lap is detected and used to present a lap time closer to unit in case of early detection (with some smooting maybe?)
     uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
     std::vector<lapData> lapsData;
     uint32_t handleGFX;
@@ -186,7 +203,6 @@ iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
   iTag("ff:ff:10:7f:2f:ee", "Black2",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
   iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
-
 };
 
 
@@ -312,7 +328,7 @@ bool iTag::UpdateParticipantStatsInGUI()
     else {
           msg.UpdateUserData.connectionStatus = 0;
     }
-
+    msg.UpdateUserData.inRace = participant.getInRace();
     //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
     //            msg.UpdateUserData.header.msgType, msg.UpdateUserData.handleGFX, msg.UpdateUserData.distance, msg.UpdateUserData.laps,
     //            msg.UpdateUserData.lastLapTime, msg.UpdateUserData.connectionStatus);
@@ -702,13 +718,29 @@ void vTaskRaceDB( void *pvParameters )
               uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
 
               if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+                
+                // New Lap!
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
-                if(!iTags[j].participant.nextLap()) {
+                iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI); // Save RSSI
+                if(!iTags[j].participant.nextLap(newLapTime)) {
                   //TODO GUI popup ??
                   ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
                 }
               }
               else {
+                uint32_t timeSinceThisLap = difftime(newLapTime, iTags[j].participant.getCurrentLapFirstDetected());
+                if (timeSinceThisLap <= LAP_UPDATED_GRACE_PERIOD)
+                {
+                  // We are within the grace period from BT first detected
+                  // If saved RSSI is better then iTags[j].participant.getBestRSSInearNewLap() then update lap
+                  if (msg.iTag.RSSI > iTags[j].participant.getBestRSSInearNewLap() ) //TODO Maybe add some margin of better like 5%
+                  {
+                    // We are withing grace period and RSS was better -> update lap!
+                    iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI);
+                    iTags[j].participant.updateLapTagIsCloser(newLapTime);
+
+                  }
+                }
                 time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
@@ -805,7 +837,9 @@ void vTaskRaceDB( void *pvParameters )
             for(int i = 0; i < lapDiff; i++)
             {
               ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
-              iTags[handleDB].participant.nextLap();
+              tm timeNow = rtc.getTimeStruct();
+              time_t newLapTime = mktime(&timeNow) - MINIMUM_LAP_TIME_IN_SECONDS; // remove MINIMUM_LAP_TIME_IN_SECONDS to make it possible to detect next lap directly
+              iTags[handleDB].participant.nextLap(newLapTime,0);
             }
           }
           else {

@@ -90,7 +90,7 @@ class guiParticipant {
   public:
     uint32_t handleDB; // save handle to use in the RaceDB messages (supplied ti RaceDB)
     uint32_t laps;     // sevaed so we can detect new laps and draw them in the graph
-
+    uint32_t thisLapStart;
     // ParticipantTab
     lv_obj_t * labelToRace;
     lv_obj_t * ledColor0;
@@ -517,6 +517,7 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   // All well so far, lets update the internal struct with the info.
   guiParticipants[handleGFX].handleDB = msgParticipant.handleDB;
   guiParticipants[handleGFX].laps = 0;
+  guiParticipants[handleGFX].thisLapStart = 0;
   guiParticipants[handleGFX].seriesLaps = seriesLaps;
   guiParticipants[handleGFX].seriesRSSI = seriesRSSI;
   guiParticipants[handleGFX].labelToRace = labelToRace;
@@ -548,7 +549,6 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
 {
 
   ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(  handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
-
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
   guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = lap;
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
@@ -570,15 +570,14 @@ static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
   if (guiParticipants[handleGFX].seriesRSSI == nullptr) {
     return;
   }
-
+  uint8_t plotValue = 0;
   if (RSSI >= -100 && RSSI < 0) {
-    //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,100 - std::abs(RSSI));
-    lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, 100 - std::abs(RSSI));
+    plotValue = 100 - std::abs(RSSI); 
   }
-  else {
-    //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,0);
-    lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, 0);
-  }
+  //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,plotValue);
+  lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, plotValue);
+
+
 }
 
 
@@ -622,10 +621,15 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     }
     else if (msg.laps < guiParticipants[handleGFX].laps) {
       // lap deleted
-      gfxClearParticipantData(handleGFX, msg.laps);
+      gfxClearParticipantData(handleGFX, msg.laps); 
+    }
+    else if ( msg.lastLapTime != guiParticipants[handleGFX].thisLapStart) {
+      // lap updated
+      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
     }
     
     guiParticipants[handleGFX].laps = msg.laps;
+    guiParticipants[handleGFX].thisLapStart = msg.lastLapTime;
 
     lv_label_set_text_fmt(guiParticipants[handleGFX].labelDist, "%4.3fkm",msg.distance/1000.0);
     if (guiParticipants[handleGFX].inRace) {
