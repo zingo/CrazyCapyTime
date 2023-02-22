@@ -3,6 +3,8 @@
  *
  * This was created from the project here 
  * https://www.makerfabs.com/sunton-esp32-s3-4-3-inch-ips-with-touch.html
+ * and some HW setup values from here
+ * https://github.com/Makerfabs/ESP32-S3-Parallel-TFT-with-Touch-4.3inch
  * 
  * Dependent libraries:
  * LVGL: https://github.com/lvgl/lvgl.git
@@ -44,12 +46,20 @@ static Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
     8 /* B0 */, 3 /* B1 */, 46 /* B2 */, 9 /* B3 */, 1 /* B4 */
 );
 
+#ifdef SUNTON_800x480
+#define RGB_PANEL_PREFERED_SPEED 14000000
+#endif
+
+#ifdef MAKERFAB_800x480
+#define RGB_PANEL_PREFERED_SPEED 16000000
+#endif
+
 //  ST7262 IPS LCD 800x480
 static Arduino_RPi_DPI_RGBPanel *gfx = new Arduino_RPi_DPI_RGBPanel(
     bus,
     800 /* width */, 0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
     480 /* height */, 0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
-    1 /* pclk_active_neg */, 14000000 /* prefer_speed */, true /* auto_flush */);
+    1 /* pclk_active_neg */, RGB_PANEL_PREFERED_SPEED /* prefer_speed */, true /* auto_flush */);
 
 #include "touch.h"
 

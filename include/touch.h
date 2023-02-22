@@ -17,16 +17,30 @@
 // #define TOUCH_MAP_Y1 0
 // #define TOUCH_MAP_Y2 320
 
+
+
+
 /* uncomment for GT911 */
  #define TOUCH_GT911
+
+#ifdef SUNTON_800x480
  #define TOUCH_GT911_SCL 20
  #define TOUCH_GT911_SDA 19
+ #define TOUCH_MAP_X1 480
+ #define TOUCH_MAP_Y1 272
+#endif
+#ifdef MAKERFAB_800x480
+ #define TOUCH_GT911_SCL 18
+ #define TOUCH_GT911_SDA 17
+ #define TOUCH_MAP_X1 800
+ #define TOUCH_MAP_Y1 480
+#endif
+
+
  #define TOUCH_GT911_INT -1
  #define TOUCH_GT911_RST 38
  #define TOUCH_GT911_ROTATION ROTATION_NORMAL
- #define TOUCH_MAP_X1 480
  #define TOUCH_MAP_X2 0
- #define TOUCH_MAP_Y1 272
  #define TOUCH_MAP_Y2 0
 
 /* uncomment for XPT2046 */
