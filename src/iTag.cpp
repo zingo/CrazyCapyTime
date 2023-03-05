@@ -164,6 +164,7 @@ class iTag {
   
     participantData participant;
     iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1);
+    bool UpdateParticipantInGFX();
     bool UpdateParticipantStatusInGUI();
     bool UpdateParticipantStatsInGUI();
     void reset();
@@ -231,13 +232,13 @@ static void AddParticipantToGFX(uint32_t handleDB, participantData &participant,
   }
 }
 
-static bool UpdateParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
+bool iTag::UpdateParticipantInGFX()
 {
   msg_GFX msg;
   msg.UpdateUser.header.msgType = MSG_GFX_UPDATE_USER;
   msg.UpdateUser.handleGFX = participant.getHandleGFX();
-  msg.UpdateUser.color0 = col0;
-  msg.UpdateUser.color1 = col1;
+  msg.UpdateUser.color0 = color0;
+  msg.UpdateUser.color1 = color1;
   std::string name = participant.getName();
   size_t len = name.copy(msg.UpdateUser.name, PARTICIPANT_NAME_LENGTH);
   msg.UpdateUser.name[len] = '\0';
@@ -565,7 +566,7 @@ static void loadRace()
     iTags[i].participant.clearLaps();
     iTags[i].participant.setUpdated(); // TODO triger resend of name and tag color also
 
-    UpdateParticipantToGFX(i,iTags[i].participant,tagColor0, tagColor1);
+    iTags[i].UpdateParticipantInGFX();
 
     if ( version == "0.1" ) {
       // TODO remove support for 0.1
@@ -796,6 +797,22 @@ void vTaskRaceDB( void *pvParameters )
           //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
           //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
           iTags[msg.AddedToGFX.handleDB].participant.setHandleGFX(msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
+          break;
+        }
+        case MSG_ITAG_UPDATE_USER:
+        {
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d", 
+          //     msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
+
+          uint32_t handleDB = msg.UpdateParticipant.handleDB;
+          iTags[handleDB].participant.setHandleGFX(msg.UpdateParticipant.handleGFX, true);
+          iTags[handleDB].color0 = msg.UpdateParticipant.color0;
+          iTags[handleDB].color1 = msg.UpdateParticipant.color1;
+          iTags[handleDB].participant.setName(msg.UpdateParticipant.name);
+          iTags[handleDB].participant.setInRace(msg.UpdateParticipant.inRace);
+          // Send update to GUI
+          iTags[handleDB].UpdateParticipantInGFX();
+
           break;
         }
         case MSG_ITAG_UPDATE_USER_RACE_STATUS:

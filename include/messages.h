@@ -57,6 +57,18 @@ struct msg_AddParticipantResponse
   bool wasOK;
 };
 
+// Used when editing a user
+struct msg_UpdateParticipantInDB
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  uint32_t handleDB;
+  uint32_t handleGFX;
+  uint32_t color0;
+  uint32_t color1;
+  char name[PARTICIPANT_NAME_LENGTH+1]; // add one for nulltermination
+  bool inRace; // Use inRace to move participant in/out of race table in GUI
+};
+
 struct msg_UpdateParticipantRaceStatus
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
@@ -93,6 +105,7 @@ union msg_RaceDB
   msg_BroadcastMessages Broadcast;
   msg_iTagDetected iTag;
   msg_AddParticipantResponse AddedToGFX;
+  msg_UpdateParticipantInDB UpdateParticipant;
   msg_UpdateParticipantRaceStatus UpdateParticipantRaceStatus;
   msg_UpdateParticipantLapCount UpdateParticipantLapCount;
   msg_LoadSaveRace LoadRace;
@@ -104,11 +117,13 @@ union msg_RaceDB
 #define MSG_ITAG_DETECTED                0x2000 //msg_iTagDetected queueRaceDB
 #define MSG_ITAG_CONFIGURED              0x2001 //msg_iTagDetected queueRaceDB
 #define MSG_ITAG_GFX_ADD_USER_RESPONSE   0x2002 //msg_AddParticipantResponse queueRaceDB
-#define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2003 //msg_UpdateParticipantRaceStatus queueRaceDB
-#define MSG_ITAG_UPDATE_USER_LAP_COUNT   0x2004 //msg_UpdateParticipantRaceStatus queueRaceDB
-#define MSG_ITAG_LOAD_RACE               0x2005 //msg_LoadSaveRace queueRaceDB
-#define MSG_ITAG_SAVE_RACE               0x2006 //msg_LoadSaveRace queueRaceDB
-#define MSG_ITAG_TIMER_2000              0x2007 //msg_Timer queueRaceDB
+#define MSG_ITAG_UPDATE_USER             0x2003 //msg_UpdateParticipantInDB queueRaceDB
+#define MSG_ITAG_UPDATE_USER_RACE_STATUS 0x2004 //msg_UpdateParticipantRaceStatus queueRaceDB
+#define MSG_ITAG_UPDATE_USER_LAP_COUNT   0x2005 //msg_UpdateParticipantRaceStatus queueRaceDB
+#define MSG_ITAG_LOAD_RACE               0x2006 //msg_LoadSaveRace queueRaceDB
+#define MSG_ITAG_SAVE_RACE               0x2007 //msg_LoadSaveRace queueRaceDB
+// "internal" update GUI timer tick
+#define MSG_ITAG_TIMER_2000              0x2100 //msg_Timer queueRaceDB
 
 
 // ##################### Send to queueGFX
@@ -161,7 +176,6 @@ struct msg_UpdateParticipantStatus
   int8_t battery; // 0-100%
   bool inRace; // Use inRace to move participant in/out of race table in GUI
 };
-
 
 union msg_GFX
 {
