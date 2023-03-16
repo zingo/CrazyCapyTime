@@ -21,16 +21,31 @@ struct msg_RaceStart
   time_t startTime;
 };
 
+
+// Used during setup, load or editing a race
+struct msg_RaceConfig
+{
+  msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
+  char fileName[RACE_NAME_LENGTH+1]; // add one for nulltermination
+  char name[RACE_NAME_LENGTH+1]; // add one for nulltermination
+  uint32_t distance;
+  uint32_t laps;
+  time_t blockNewLapTime;
+  time_t updateCloserTime;
+  time_t raceStartInTime; // Race Start Countdown time
+};
+
 union msg_BroadcastMessages
 {
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   msg_RaceClear RaceClear;
   msg_RaceStart RaceStart;
-
+  msg_RaceConfig RaceConfig;
 };
 
 #define MSG_RACE_CLEAR        0xffff0000 //msg_RaceClear queueRaceDB, queueGFX
 #define MSG_RACE_START        0xffff0001 //msg_RaceStart queueRaceDB, queueGFX
+#define MSG_RACE_CONFIG       0xffff0002 //msg_RaceConfig queueRaceDB, queueGFX
 
 
 // ##################### Send to queueBTConnect

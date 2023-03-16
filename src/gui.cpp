@@ -70,6 +70,12 @@ static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *disp_draw_buf = nullptr;
 static lv_disp_drv_t disp_drv;
 
+static const lv_font_t *fontNormal = &lv_font_montserrat_16;
+static const lv_font_t *fontTag = &lv_font_montserrat_28;
+static const lv_font_t *fontLarge = &lv_font_montserrat_24;
+static const lv_font_t *fontLargest = &lv_font_montserrat_36;
+static const lv_font_t *fontTime = &lv_font_montserrat_42;
+
 // GUI objects
 static lv_style_t styleTextMuted;
 static lv_style_t styleTitle;
@@ -92,12 +98,6 @@ static lv_obj_t *chartLaps = nullptr;
 static lv_obj_t *chartRSSI = nullptr;
 
 static lv_obj_t* keyboard = nullptr;
-
-static const lv_font_t *fontNormal = &lv_font_montserrat_16;
-static const lv_font_t *fontTag = &lv_font_montserrat_28;
-static const lv_font_t *fontLarge = &lv_font_montserrat_24;
-static const lv_font_t *fontLargest = &lv_font_montserrat_36;
-static const lv_font_t *fontTime = &lv_font_montserrat_42;
 
 class guiParticipant {
   public:
@@ -131,6 +131,32 @@ class guiParticipant {
     lv_obj_t * labelRaceConnectionStatus;
 };
 
+class guiRace {
+  public:
+    void receiveConfigRace(msg_RaceConfig *raceConfig);
+    void sendConfigRace();
+    void createGUITabConfig(lv_obj_t * parent);
+    uint32_t getDistance() { return distance;}
+    void setDistance(uint32_t inDistance) { distance = inDistance;}
+    uint32_t getLaps() { return laps;}
+    void setLaps(uint32_t inLaps) { laps = inLaps;}
+    void setBlockNewLapTime(time_t newTime) {lv_textarea_set_text(textAreaConfigRaceBlockNewLapTime,std::to_string(newTime).c_str());}
+    bool isTestAreaDistance(lv_obj_t *ta) {return ta==textAreaConfigRaceDistance;}
+    bool isTestAreaLaps(lv_obj_t *ta) {return ta==textAreaConfigRaceLaps;}
+  private:
+    uint32_t distance;
+    uint32_t laps;
+    lv_obj_t * textAreaConfigRaceFileName = nullptr;
+    lv_obj_t * textAreaConfigRaceName = nullptr;
+    lv_obj_t * textAreaConfigRaceDistance = nullptr;
+    lv_obj_t * textAreaConfigRaceLaps = nullptr;
+    lv_obj_t * textAreaConfigRaceLapsDistances = nullptr;
+    lv_obj_t * textAreaConfigRaceBlockNewLapTime = nullptr;
+    lv_obj_t * textAreaConfigRaceUpdateCloserTime = nullptr;
+    lv_obj_t * textAreaConfigRaceRaceStartIn = nullptr;
+};
+
+static guiRace guiRace;
 static guiParticipant guiParticipants[ITAG_COUNT]; // TODO Could be dynamic
 static uint32_t globalHandleGFX = 0;  // We use the index into guiParticipants as a handle we will give to others like RaceDB
 
@@ -146,6 +172,7 @@ static void btnTime_event_cb(lv_event_t * e)
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
           startRaceCountdown();
+          lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
           gfxClearAllParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
     }
@@ -164,6 +191,7 @@ static void btnTime_event_cb(lv_event_t * e)
         raceOngoing = true;
         lv_obj_t * label = lv_obj_get_child(btn, 0);
         lv_label_set_text_fmt(label, "Race continued!");
+        lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
       }
     }
 }
@@ -221,6 +249,7 @@ static void taEdit_event_cb(lv_event_t * e)
  // lv_obj_t *kb = reinterpret_cast<lv_obj_t *>(lv_event_get_user_data(e));
   if(code == LV_EVENT_FOCUSED) {
     if(lv_indev_get_type(lv_indev_get_act()) != LV_INDEV_TYPE_KEYPAD) {
+      lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
       lv_keyboard_set_textarea(keyboard, ta);
       lv_obj_set_style_max_height(keyboard, LV_HOR_RES * 2 / 3, 0);
       lv_obj_update_layout(tabView);   /*Be sure the sizes are recalculated*/
@@ -272,7 +301,6 @@ static void taEdit_event_cb(lv_event_t * e)
     }
   }
 }
-
 
 static void btnTagAdd_event_cb(lv_event_t * e)
 {
@@ -390,7 +418,7 @@ static void gfxAddUserToRace(lv_obj_t * parent, uint32_t handleGFX)
     lv_obj_set_grid_cell(labelDist, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * labelLaps = lv_label_create(panel1);
-    //lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,RACE_LAPS);
+    //lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,guiRace.getLaps());
     lv_obj_add_style(labelLaps, &styleTagText, 0);
     lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
@@ -533,7 +561,7 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
 
   // ------ Laps
   lv_obj_t * labelLaps = lv_label_create(panel1);
-  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,RACE_LAPS);
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,guiRace.getLaps());
   lv_obj_add_style(labelLaps, &styleTagText, 0);
   lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
@@ -647,10 +675,7 @@ static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
   }
   //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,plotValue);
   lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, plotValue);
-
-
 }
-
 
 static void gfxClearAllParticipantData()
 {
@@ -708,9 +733,9 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     }
 
 
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
     if (guiParticipants[handleGFX].inRace) {
-      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,RACE_LAPS);
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
     }
 
     struct tm timeinfo;
@@ -835,6 +860,317 @@ static void createGUITabParticipant(lv_obj_t * parent)
   lv_obj_set_style_pad_column(parent, 2,0);
   lv_obj_set_style_pad_row(parent, 2,0);
   lv_obj_set_style_pad_all(parent, 2,0);
+}
+
+void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
+{
+  ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+        raceConfig->header.msgType, raceConfig->fileName, raceConfig->name,raceConfig->distance, raceConfig->laps, 
+        raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
+  std::string fileName = std::string(raceConfig->fileName);
+  std::string name = std::string(raceConfig->name);
+  std::string distance = std::to_string(raceConfig->distance);
+  laps = raceConfig->laps;
+  time_t blockNewLapTime = raceConfig->blockNewLapTime;
+  std::string updateCloserTime = std::to_string(raceConfig->updateCloserTime);
+  std::string raceStartInTime = std::to_string(raceConfig->raceStartInTime);
+
+  if (laps == 0) {
+    // Laps cant be 0 assume 1
+    laps = 1;
+  }
+  uint32_t lapsDistances = raceConfig->distance / laps;
+
+  lv_textarea_set_text(textAreaConfigRaceFileName,fileName.c_str());
+  lv_textarea_set_text(textAreaConfigRaceName,name.c_str());
+  lv_textarea_set_text(textAreaConfigRaceDistance,distance.c_str());
+  lv_textarea_set_text(textAreaConfigRaceLaps,std::to_string(laps).c_str());
+  lv_label_set_text(textAreaConfigRaceLapsDistances,std::to_string(lapsDistances).c_str());
+  setBlockNewLapTime(blockNewLapTime);
+  lv_textarea_set_text(textAreaConfigRaceUpdateCloserTime,updateCloserTime.c_str());
+  lv_textarea_set_text(textAreaConfigRaceRaceStartIn,raceStartInTime.c_str());
+}
+
+void guiRace::sendConfigRace()
+{
+  std::string configRaceFileName    = std::string(lv_textarea_get_text(textAreaConfigRaceFileName));
+  std::string configRaceName        = std::string(lv_textarea_get_text(textAreaConfigRaceName));
+  uint32_t configRaceDistance       = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
+  //laps                              = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceLaps)));
+  time_t configRaceBlockNewLapTime  = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceBlockNewLapTime)));
+  time_t configRaceUpdateCloserTime = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceUpdateCloserTime)));
+  time_t configRaceRaceStartIn      = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceRaceStartIn)));
+
+  if (laps == 0) {
+    // Laps cant be 0 assume 1
+    laps = 1;
+    lv_textarea_set_text(textAreaConfigRaceLaps,std::to_string(laps).c_str());
+  }
+
+  uint32_t configRaceLapsDistances = configRaceDistance / laps;
+  lv_label_set_text(textAreaConfigRaceLapsDistances,std::to_string(configRaceLapsDistances).c_str());
+
+  msg_RaceDB msg;
+  msg.Broadcast.RaceConfig.header.msgType = MSG_RACE_CONFIG;
+  size_t len = configRaceFileName.copy(msg.Broadcast.RaceConfig.fileName, PARTICIPANT_NAME_LENGTH);
+  msg.Broadcast.RaceConfig.fileName[len] = '\0';
+  len = configRaceName.copy(msg.Broadcast.RaceConfig.name, PARTICIPANT_NAME_LENGTH);
+  msg.Broadcast.RaceConfig.name[len] = '\0';
+
+  msg.Broadcast.RaceConfig.distance = configRaceDistance;
+  msg.Broadcast.RaceConfig.laps = laps;
+  msg.Broadcast.RaceConfig.blockNewLapTime = configRaceBlockNewLapTime;
+  msg.Broadcast.RaceConfig.updateCloserTime = configRaceUpdateCloserTime;
+  msg.Broadcast.RaceConfig.raceStartInTime = configRaceRaceStartIn;
+
+  ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%d distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+        msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
+        msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
+
+  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
+  if (!xReturned) {
+    // it it fails let the user click again
+    ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
+  }
+
+}
+
+static void taConfigText_event_cb(lv_event_t * e)
+{
+  lv_event_code_t code = lv_event_get_code(e);
+  lv_obj_t *ta = lv_event_get_target(e);
+  //uint32_t handleGFX = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
+  if(code == LV_EVENT_FOCUSED) {
+    if(lv_indev_get_type(lv_indev_get_act()) != LV_INDEV_TYPE_KEYPAD) {
+      lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
+      lv_keyboard_set_textarea(keyboard, ta);
+      lv_obj_set_style_max_height(keyboard, LV_HOR_RES * 2 / 3, 0);
+      lv_obj_update_layout(tabView);   /*Be sure the sizes are recalculated*/
+      lv_obj_set_height(tabView, LV_VER_RES - lv_obj_get_height(keyboard));
+      lv_obj_clear_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_scroll_to_view_recursive(ta, LV_ANIM_ON);
+    }
+  }
+  else if(code == LV_EVENT_DEFOCUSED) {
+    lv_keyboard_set_textarea(keyboard, NULL);
+    lv_obj_set_height(tabView, LV_VER_RES);
+    lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_indev_reset(NULL, ta);
+  }
+  else if(code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+    lv_obj_set_height(tabView, LV_VER_RES);
+    lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+    lv_indev_reset(NULL, ta);   /*To forget the last clicked object to make it focusable again*/
+  }
+
+  // Config updated -> send update signal to RaceDB, and update signal will be send back
+  // that will resync name in all tabs.
+  if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED || code == LV_EVENT_CANCEL)
+  {
+    guiRace.sendConfigRace();
+  }
+}
+
+static void taConfigNum_event_cb(lv_event_t * e)
+{
+  lv_event_code_t code = lv_event_get_code(e);
+  lv_obj_t *ta = lv_event_get_target(e);
+  //uint32_t handleGFX = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
+  if(code == LV_EVENT_FOCUSED) {
+    if(lv_indev_get_type(lv_indev_get_act()) != LV_INDEV_TYPE_KEYPAD) {
+      lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_NUMBER);
+      lv_keyboard_set_textarea(keyboard, ta);
+      lv_obj_set_style_max_height(keyboard, LV_HOR_RES * 2 / 3, 0);
+      lv_obj_update_layout(tabView);   /*Be sure the sizes are recalculated*/
+      lv_obj_set_height(tabView, LV_VER_RES - lv_obj_get_height(keyboard));
+      lv_obj_clear_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_scroll_to_view_recursive(ta, LV_ANIM_ON);
+    }
+  }
+  else if(code == LV_EVENT_DEFOCUSED) {
+    lv_keyboard_set_textarea(keyboard, NULL);
+    lv_obj_set_height(tabView, LV_VER_RES);
+    lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_indev_reset(NULL, ta);
+  }
+  else if(code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+    lv_obj_set_height(tabView, LV_VER_RES);
+    lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_state(ta, LV_STATE_FOCUSED);
+    lv_indev_reset(NULL, ta);   /*To forget the last clicked object to make it focusable again*/
+  }
+
+  // Config updated -> send update signal to RaceDB, and update signal will be send back
+  // that will resync name in all tabs.
+  if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED || code == LV_EVENT_CANCEL)
+  {
+    // Update Laps
+    if (guiRace.isTestAreaLaps(ta)) {
+        //uint32_t raceDistance = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
+        uint32_t laps = std::stoi( std::string(lv_textarea_get_text(ta)));
+        if (laps == 0) {
+          laps = 1;
+          lv_textarea_set_text(ta,"1");
+        }
+        guiRace.setLaps(laps);
+    }
+    // Update Distance
+    if (guiRace.isTestAreaDistance(ta)) {
+        //uint32_t raceDistance = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
+        uint32_t dist = std::stoi( std::string(lv_textarea_get_text(ta)));
+        guiRace.setDistance(dist);
+    }
+    // Check if we should update block time
+    if (guiRace.isTestAreaLaps(ta) || guiRace.isTestAreaDistance(ta)) {
+      uint32_t laps = guiRace.getLaps();
+      if (laps == 0) {
+          laps = 1;
+      }
+      time_t  blockNewLapTime;
+      // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
+      blockNewLapTime = ((170*guiRace.getDistance()/laps)/1000);
+      guiRace.setBlockNewLapTime(blockNewLapTime);
+    }
+
+    guiRace.sendConfigRace();
+  }
+}
+
+
+static lv_obj_t * addConfigText(lv_obj_t * parent, uint8_t row, char *labelText, char* content, char* extra, bool editable)
+{
+  uint8_t col = 0;
+
+  lv_obj_t *label = lv_label_create(parent);
+  lv_obj_set_grid_cell(label, LV_GRID_ALIGN_END, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+  lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_label_set_text(label, labelText);
+  lv_obj_center(label);
+
+  lv_obj_t * lvobj;
+  if (editable) {
+    lvobj = lv_textarea_create(parent);
+    lv_textarea_set_one_line(lvobj, true);
+    lv_textarea_set_password_mode(lvobj, false);
+    lv_textarea_set_text(lvobj, content);
+    lv_obj_add_event_cb(lvobj, taConfigText_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(0));
+  }
+  else {
+    lvobj = lv_label_create(parent);
+    lv_label_set_text(lvobj, content);
+  }
+  lv_obj_add_style(lvobj, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(lvobj, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+
+  label = lv_label_create(parent);
+  lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+  lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_label_set_text(label, extra);
+  lv_obj_center(label);
+
+  return lvobj;
+}
+
+static lv_obj_t * addConfigNumber(lv_obj_t * parent, uint8_t row, char *labelText, uint32_t content, char* extra, bool editable)
+{
+  uint8_t col = 0;
+
+  lv_obj_t *label = lv_label_create(parent);
+  lv_obj_set_grid_cell(label, LV_GRID_ALIGN_END, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+  lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_label_set_text(label, labelText);
+  lv_obj_center(label);
+
+  lv_obj_t * lvobj;
+  if (editable) {
+    lvobj = lv_textarea_create(parent);
+    lv_textarea_set_accepted_chars(lvobj, "0123456789");
+    lv_textarea_set_one_line(lvobj, true);
+    lv_textarea_set_password_mode(lvobj, false);
+    lv_textarea_set_text(lvobj, std::to_string(content).c_str());
+    lv_obj_add_event_cb(lvobj, taConfigNum_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(0));
+  }
+  else {
+    lvobj = lv_label_create(parent);
+    lv_label_set_text(lvobj, std::to_string(content).c_str());
+  }
+  lv_obj_add_style(lvobj, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(lvobj, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+
+  label = lv_label_create(parent);
+  lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+  lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_label_set_text(label, extra);
+  lv_obj_center(label);
+
+  return lvobj;
+}
+
+void guiRace::createGUITabConfig(lv_obj_t * parent)
+{
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,2,0);
+  lv_obj_set_style_pad_row(parent,2,0);
+  lv_obj_set_style_pad_all(parent, 2,0);
+
+
+  // ---- Load & Save buttons
+
+  lv_obj_t * panel1 = lv_obj_create(parent);
+  lv_obj_set_height(panel1, LV_SIZE_CONTENT);
+  lv_obj_set_width(panel1, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(panel1, LV_FLEX_FLOW_ROW);
+
+  lv_obj_t * btnLoad = lv_btn_create(panel1); 
+  lv_obj_add_event_cb(btnLoad, btnLoad_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *labelLoad = lv_label_create(btnLoad);          /*Add a label to the button*/
+  lv_label_set_text(labelLoad, "Load");                     /*Set the labels text*/
+  lv_obj_center(labelLoad);
+  lv_obj_add_style(labelLoad, &styleTime, 0);
+
+  lv_obj_t * btnSave = lv_btn_create(panel1); 
+  lv_obj_add_event_cb(btnSave, btnSave_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *labelSave = lv_label_create(btnSave);          /*Add a label to the button*/
+  lv_label_set_text(labelSave, "Save");                     /*Set the labels text*/
+  lv_obj_center(labelSave);
+  lv_obj_add_style(labelSave, &styleTime, 0);
+
+  // ---- Race Config table
+  static lv_coord_t col_dsc[] = {                 LV_GRID_CONTENT, LV_GRID_FR(10), LV_GRID_CONTENT,       LV_GRID_TEMPLATE_LAST};
+  static lv_coord_t row_dsc[] = {LV_GRID_CONTENT, 
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_TEMPLATE_LAST};
+
+  lv_obj_t * configGrid = lv_obj_create(parent);
+  lv_obj_set_size(configGrid, LV_PCT(100), LV_SIZE_CONTENT);
+  //lv_obj_set_height(configGrid, LV_SIZE_CONTENT);
+  //lv_obj_set_width(configGrid, LV_PCT(100));
+
+  //lv_obj_center(configGrid);
+  lv_obj_set_grid_dsc_array(configGrid, col_dsc, row_dsc);
+
+  uint32_t row = 0;
+  textAreaConfigRaceFileName         = addConfigText(  configGrid, row++, "File name:","FileName", "", true);          //TODO add Load/save buttons here instead?
+  textAreaConfigRaceName             = addConfigText(  configGrid, row++, "Race name:","Name", "", true);
+  textAreaConfigRaceDistance         = addConfigNumber(configGrid, row++, "Distance:",0, "meter", true);
+  textAreaConfigRaceLaps             = addConfigNumber(configGrid, row++, "Laps:",0, "", true);
+  textAreaConfigRaceLapsDistances    = addConfigNumber(configGrid, row++, "Laps distance:", 0, "meter", false);  // Not editable will be a label instead of textarea
+  textAreaConfigRaceBlockNewLapTime  = addConfigNumber(configGrid, row++, "Block new lap until:", 0, "s", true);
+  textAreaConfigRaceUpdateCloserTime = addConfigNumber(configGrid, row++, "Participand closing in time:", 0, "s", true);
+  textAreaConfigRaceRaceStartIn      = addConfigNumber(configGrid, row++, "Race start countdown:", 0, "s", true);
 }
 
 static void createGUITabRaceExtra(lv_obj_t * parent)
@@ -1014,11 +1350,13 @@ void createGUI(void)
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
   lv_obj_t * tab3 = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
   lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
+  lv_obj_t * tab5 = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
   createGUITabRaceExtra(tab3);
   createGUITabRSSI(tab4);
+  guiRace.createGUITabConfig(tab5);
 }
 
 
@@ -1095,6 +1433,12 @@ void loopHandlLVGL()
         {
           ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
           gfxClearAllParticipantData();
+          break;
+        }
+        case MSG_RACE_CONFIG:
+        {
+          //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
+          guiRace.receiveConfigRace(&msg.Broadcast.RaceConfig);
           break;
         }
         default:

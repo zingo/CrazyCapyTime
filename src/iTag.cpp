@@ -31,6 +31,110 @@ void refreshTagGUI();
 
 #define MAX_SAVED_LAPS 1000
 
+
+class Race {
+  public:
+    Race()
+    {
+      fileName = std::string("Revolution003.json");
+      name = std::string("Revolution Marathon");
+      distance = RACE_DISTANCE_TOTAL;
+      laps = RACE_LAPS;
+      if(laps == 0) {  //TODO make this a compiler check
+        laps = 1; // Should never be 0 but if it is lets fix it
+      }
+      // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
+      blockNewLapTime = ((170*distance/laps)/1000);
+      updateCloserTime = 30;
+      raceStartInTime = RACE_COUNTDOWN;      
+    }
+
+    void receive_ConfigMsg(msg_RaceConfig *raceConfig)
+    {
+      fileName = std::string(raceConfig->fileName);
+      name = std::string(raceConfig->name);
+      distance = raceConfig->distance;
+      laps = raceConfig->laps;
+      blockNewLapTime = raceConfig->blockNewLapTime;
+      updateCloserTime = raceConfig->updateCloserTime;
+      raceStartInTime = raceConfig->raceStartInTime;
+      if(laps == 0) {
+        laps = 1; // Should never be 0 but if it is lets fix it
+      }
+    }
+
+    void send_ConfigMsg(QueueHandle_t queue)
+    {
+        if(laps == 0) {
+          laps = 1; // Should never be 0 but if it is lets fix it
+        }
+        msg_RaceDB msg;
+        msg.Broadcast.RaceConfig.header.msgType = MSG_RACE_CONFIG;
+        size_t len = fileName.copy(msg.Broadcast.RaceConfig.fileName, PARTICIPANT_NAME_LENGTH);
+        msg.Broadcast.RaceConfig.fileName[len] = '\0';
+        len = name.copy(msg.Broadcast.RaceConfig.name, PARTICIPANT_NAME_LENGTH);
+        msg.Broadcast.RaceConfig.name[len] = '\0';
+
+        msg.Broadcast.RaceConfig.distance = distance;
+        msg.Broadcast.RaceConfig.laps = laps;
+        msg.Broadcast.RaceConfig.blockNewLapTime = blockNewLapTime;
+        msg.Broadcast.RaceConfig.updateCloserTime = updateCloserTime;
+        msg.Broadcast.RaceConfig.raceStartInTime = raceStartInTime;
+
+        ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+        msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
+        msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
+
+        BaseType_t xReturned = xQueueSend(queue, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
+        if (!xReturned) {
+          // it it fails let the user click again
+          ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
+        }
+    }
+
+    std::string getFileName() {return fileName;}
+    std::string getName() {return name;}
+    uint32_t getDistance() {return distance;}
+    uint32_t getLaps()
+    {
+      if(laps == 0) {
+        laps = 1; // Should never be 0 but if it is lets fix it
+      }
+      return laps;
+    }
+    double getLapDistance()
+    {
+      if(laps == 0) {
+        laps = 1; // Should never be 0 but if it is lets fix it before the division below
+      }
+      return static_cast<double>(distance)/static_cast<double>(laps);
+    }
+    time_t getBlockNewLapTime() {return blockNewLapTime;}
+    time_t getUpdateCloserTime() {return updateCloserTime;}
+    time_t getRaceStartInTime() {return raceStartInTime;}
+    time_t getRaceStart() {return raceStart;}
+
+    void setName(std::string inName) {name=inName;}
+    void setDistance(uint32_t inDist) {distance=inDist;}
+    void setLaps(uint32_t inLaps) {laps=inLaps;};
+    void setRaceStart(uint32_t inStart) {raceStart=inStart;}
+
+  private:
+    std::string fileName;
+    std::string name;
+    uint32_t distance;
+    uint32_t laps;
+    time_t blockNewLapTime;  // We need to NOT detect the tag for this amout of time before adding a new lap if we the the tag.
+    time_t updateCloserTime; // If we get a stronger RSSI signal during this time in seconds after a initial detection, the lap time is updated.
+    time_t raceStartInTime;  // Race Start Countdown time
+    // Ongoing Race stuff
+    time_t raceStart;
+};
+
+static Race theRace;
+
+
+
 class lapData {
   public:
     lapData(): StartTime(0), LastSeen(0) {}
@@ -142,8 +246,8 @@ class participantData {
   private:
     std::string name;     // Participant name
     uint32_t laps;
-    time_t timeCurrentLapFirstDetected; // First time in this lap the tag is ever detected, getCurrentLapStart() might get updated to a LAP_UPDATED_GRACE_PERIOD seconds after detection if RSSI get "stronger".
-    int8_t bestRSSInearNewLap; // Updated LAP_UPDATED_GRACE_PERIOD seconds after a new lap is detected and used to present a lap time closer to unit in case of early detection (with some smooting maybe?)
+    time_t timeCurrentLapFirstDetected; // First time in this lap the tag is ever detected, getCurrentLapStart() might get updated to a theRace.getUpdateCloserTime() seconds after detection if RSSI get "stronger".
+    int8_t bestRSSInearNewLap; // Updated theRace.getUpdateCloserTime() seconds after a new lap is detected and used to present a lap time closer to unit in case of early detection (with some smooting maybe?)
     uint32_t timeSinceLastSeen; // in seconds, used to update UI Update when calculated
     std::vector<lapData> lapsData;
     uint32_t handleGFX;
@@ -175,7 +279,6 @@ class iTag {
   private:
     int RSSI;
 };
-
 
 #define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
 #define ITAG_COLOR_WHITE    0xFBFEF8 // Pearl White
@@ -308,7 +411,7 @@ bool iTag::UpdateParticipantStatsInGUI()
     msg.UpdateUserData.header.msgType = MSG_GFX_UPDATE_USER_DATA;
     msg.UpdateUserData.handleGFX = participant.getHandleGFX();
 
-    msg.UpdateUserData.distance = participant.getLapCount()* RACE_DISTANCE_LAP;
+    msg.UpdateUserData.distance = participant.getLapCount() * theRace.getLapDistance();
     msg.UpdateUserData.laps = participant.getLapCount();
     msg.UpdateUserData.lastLapTime = participant.getCurrentLapStart();
     msg.UpdateUserData.lastSeenTime = participant.getCurrentLastSeenSinceRaceStart();
@@ -344,7 +447,7 @@ bool iTag::UpdateParticipantStatsInGUI()
   return true;
 }
 
-iTag::iTag(std::string inAddress,std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1)
+iTag::iTag(std::string inAddress, std::string inName, bool isInRace, uint32_t inColor0, uint32_t inColor1)
 {
   address = inAddress;
   color0 = inColor0;
@@ -415,7 +518,7 @@ void refreshTagGUI()
     }
 
 
-      if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+      if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {
         ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen());
         iTags[j].connected = false;
       }
@@ -427,7 +530,7 @@ void refreshTagGUI()
     }
 
    // if(iTags[j].active) {
-   //   ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),MINIMUM_LAP_TIME_IN_SECONDS, longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+   //   ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),theRace.getBlockNewLapTime(), longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
    // }
   }
 //  ESP_LOGI(TAG,"------------------------");
@@ -460,7 +563,7 @@ static void checkDisk()
 {
   unsigned int totalBytes = LittleFS.totalBytes();
   unsigned int usedBytes = LittleFS.usedBytes();
-  unsigned int freeBytes  = totalBytes - freeBytes;
+  unsigned int freeBytes  = totalBytes - usedBytes;
 
   ESP_LOGI(TAG,"File system info: -----------");
   ESP_LOGI(TAG,"Total space     : %d bytes\n",totalBytes);
@@ -473,15 +576,12 @@ static void checkDisk()
   printDirectory(dir,0);
   dir.close();
   ESP_LOGI(TAG,"-----------------------------");
-
 }
-
 
 static void loadRace()
 {
   checkDisk(); // just for debug
-
-  std::string fileName = std::string("/RaceData2.json");
+  std::string fileName = std::string("/").append(theRace.getFileName());
 
   File raceFile = LittleFS.open(fileName.c_str(), "r");
   if (!raceFile) {
@@ -503,17 +603,28 @@ static void loadRace()
   ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
   std::string version = raceJson["fileformatversion"];
 
-  if ( ! (version == "0.1" || version == "0.2")) {   //TODO remove support for 0.1
-    ESP_LOGI(TAG,"fileformatversion=%s != 0.1 (NOK) Do nothing",version.c_str());
-    return;
+  if ( ! (version == "0.3")) {
+    ESP_LOGE(TAG,"LoadRace ERROR fileformatversion=%s != 0.3 (NOK) Try anyway JSON is kind of build for this.",version.c_str());
   }
   //ESP_LOGI(TAG,"fileformatversion=%s (OK)",version.c_str());
 
-  time_t raceStart = raceJson["start"];
+
+  std::string name = raceJson["racename"];
   uint32_t raceDist = raceJson["distance"];
   uint32_t raceLaps = raceJson["laps"];
-  double raceLapDist = raceJson["lapsdistance"];
+  double raceLapDist = raceJson["lapdistance"];
   uint32_t raceTagCount = raceJson["tags"];
+  time_t raceStart = raceJson["start"];
+
+  theRace.setName(name);
+  theRace.setDistance(raceDist);
+  theRace.setLaps(raceLaps);
+  theRace.setRaceStart(raceStart);
+
+  if ( std::abs(raceLapDist - theRace.getLapDistance()) > 1.0) {
+    ESP_LOGE(TAG,"LoadRace ERROR lapdistance=%f != %f (calculated lap distance from dist:%d laps:%d) (NOK) Do nothing",raceLapDist,theRace.getLapDistance(),raceDist,raceLaps);
+  } 
+  theRace.send_ConfigMsg(queueGFX);
 
   // Start with clearing UI
 
@@ -546,11 +657,11 @@ static void loadRace()
     std::string tagAddress = tagJson["address"]; // -> iTags[i].address;
     uint32_t tagColor0 = tagJson["color0"]; // -> iTags[i].color0;
     uint32_t tagColor1 = tagJson["color1"]; // -> iTags[i].color1;
-    bool tagActive = tagJson["active"]; // -> iTags[i].active;
+    //bool tagActive = tagJson["active"]; // -> iTags[i].active;
  
     JsonObject participantJson = tagJson["participant"];
     std::string participantName = participantJson["name"]; // -> iTags[i].participant.getName();
-    uint32_t participantLaps = participantJson["laps"]; // -> iTags[i].participant.getLapCount();
+    //uint32_t participantLaps = participantJson["laps"]; // -> iTags[i].participant.getLapCount();
     uint32_t participantTimeSinceLastSeen = participantJson["timeSinceLastSeen"]; // -> iTags[i].participant.getTimeSinceLastSeen();
     bool participantInRace = participantJson["inRace"]; // -> iTags[i].participant.getInRace();
 
@@ -621,12 +732,13 @@ static void saveRace()
 
   raceJson["Appname"] = "CrazyCapyTime";
   raceJson["filetype"] = "racedata";
-  raceJson["fileformatversion"] = "0.2";
-  raceJson["start"] = 0;
-  raceJson["distance"] = RACE_DISTANCE_TOTAL;
-  raceJson["laps"] = RACE_LAPS;
-  raceJson["lapsdistance"] = RACE_DISTANCE_LAP;
+  raceJson["fileformatversion"] = "0.3";
+  raceJson["racename"] = theRace.getName();
+  raceJson["distance"] = theRace.getDistance();
+  raceJson["laps"] = theRace.getLaps();
+  raceJson["lapdistance"] = theRace.getLapDistance();
   raceJson["tags"] = ITAG_COUNT;
+  raceJson["start"] = theRace.getRaceStart();
 
   JsonArray tagArrayJson = raceJson.createNestedArray("tag");
   for(int i=0; i<ITAG_COUNT; i++)
@@ -659,7 +771,7 @@ static void saveRace()
 
   checkDisk(); // just for debug
 
-  std::string fileName = std::string("/RaceData3.json");
+  std::string fileName = std::string("/").append(theRace.getFileName());
   File raceFile = LittleFS.open(fileName.c_str(), "w");
   if (!raceFile) {
     ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) failed", fileName.c_str());
@@ -678,6 +790,14 @@ void vTaskRaceDB( void *pvParameters )
      pvParameters value in the call to xTaskCreate() below. 
   */
   configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+
+  ESP_LOGI(TAG,"Setup Race");
+  // TODO Load Global Race Config, and then current race
+
+
+  // Send Race setup to GUI
+  ESP_LOGI(TAG,"Send Race to GUI");
+  theRace.send_ConfigMsg(queueGFX);
 
   // Add all Participants in race to race page
   for(int handleDB=0; handleDB<ITAG_COUNT; handleDB++)
@@ -718,7 +838,7 @@ void vTaskRaceDB( void *pvParameters )
               time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
               uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
 
-              if (timeSinceLastSeen > MINIMUM_LAP_TIME_IN_SECONDS) {
+              if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {
                 
                 // New Lap!
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
@@ -730,7 +850,9 @@ void vTaskRaceDB( void *pvParameters )
               }
               else {
                 uint32_t timeSinceThisLap = difftime(newLapTime, iTags[j].participant.getCurrentLapFirstDetected());
-                if (timeSinceThisLap <= LAP_UPDATED_GRACE_PERIOD)
+                
+                // theRace.getUpdateCloserTime() seconds after first BT detection, we update the Lap time if we get stringer signal (typical 30s)
+                if (timeSinceThisLap <= theRace.getUpdateCloserTime())
                 {
                   // We are within the grace period from BT first detected
                   // If saved RSSI is better then iTags[j].participant.getBestRSSInearNewLap() then update lap
@@ -780,7 +902,7 @@ void vTaskRaceDB( void *pvParameters )
           {
             // TODO send index? so we don't need the string compare here???
             if(bleAddress == iTags[j].address) {
-                            time_t newLapTime = msg.iTag.time;
+              //time_t newLapTime = msg.iTag.time;
               iTags[j].setRSSI(msg.iTag.RSSI);
               if (msg.iTag.battery != INT8_MIN) {
                 iTags[j].battery = msg.iTag.battery;
@@ -855,7 +977,7 @@ void vTaskRaceDB( void *pvParameters )
             {
               ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
               tm timeNow = rtc.getTimeStruct();
-              time_t newLapTime = mktime(&timeNow) - MINIMUM_LAP_TIME_IN_SECONDS; // remove MINIMUM_LAP_TIME_IN_SECONDS to make it possible to detect next lap directly
+              time_t newLapTime = mktime(&timeNow) - theRace.getBlockNewLapTime(); // remove theRace.getBlockNewLapTime() to make it possible to detect next lap directly
               iTags[handleDB].participant.nextLap(newLapTime,0);
             }
           }
@@ -889,6 +1011,7 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_RACE_START:
         {
           ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+          theRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
           raceStartiTags(msg.Broadcast.RaceStart.startTime);
           break;
         }
@@ -896,6 +1019,13 @@ void vTaskRaceDB( void *pvParameters )
         {
           ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
           raceCleariTags();
+          break;
+        }
+        case MSG_RACE_CONFIG:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
+          theRace.receive_ConfigMsg(&msg.Broadcast.RaceConfig);
+          theRace.send_ConfigMsg(queueGFX); //Make sure GUI is in sync
           break;
         }
         default:
