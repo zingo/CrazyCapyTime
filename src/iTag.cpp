@@ -652,12 +652,14 @@ static void saveGlobalConfig()
 
 static void loadRace()
 {
-  checkDisk(); // just for debug
+  uint64_t start_time = micros();
+
   std::string fileName = std::string("/").append(theRace.getFileName());
 
   File raceFile = LittleFS.open(fileName.c_str(), "r");
   if (!raceFile) {
     ESP_LOGE(TAG,"ERROR: LittleFS open(%s) for read failed",fileName.c_str());
+    checkDisk(); // just for debug
     return;
   }
 
@@ -666,6 +668,7 @@ static void loadRace()
   raceFile.close();
   if (err) {
     ESP_LOGE(TAG,"ERROR: deserializeJson() failed with code %s",err.f_str());
+    checkDisk(); // just for debug
     return;
   }
   
@@ -794,13 +797,17 @@ static void loadRace()
       }
     }
   }
+  uint64_t stop_time = micros();
+  uint32_t tot_time = stop_time - start_time;
+  ESP_LOGI(TAG,"Loaded race as %s time %d us", fileName.c_str(),tot_time );
+
 }
 
 static void saveRace()
 {
+  uint64_t start_time = micros();
+
   DynamicJsonDocument raceJson(50000); // TODO verify with a maximum Tags/Laps file
-  //JsonObject raceJson = jsonDoc.createObject();
-  //char JSONmessageBuffer[200];
 
   raceJson["Appname"] = "CrazyCapyTime";
   raceJson["filetype"] = "racedata";
@@ -815,7 +822,6 @@ static void saveRace()
   JsonArray tagArrayJson = raceJson.createNestedArray("tag");
   for(int i=0; i<ITAG_COUNT; i++)
   {
-    //JsonObject tagJson = raceJson.createNestedObject("tag");
     JsonObject tagJson = tagArrayJson.createNestedObject();
     tagJson["address"] = iTags[i].address;
     tagJson["color0"] = iTags[i].color0;
@@ -835,25 +841,27 @@ static void saveRace()
       lapJson["LastSeen"] = iTags[i].participant.getLap(lap).getLastSeen();
     }
   }
+
   // Print a prettified JSON document to the serial port
   //String output = "";
   //serializeJsonPretty(raceJson, output);
   //ESP_LOGI(TAG,"json: \n%s", output.c_str());
 
-
-  checkDisk(); // just for debug
-
   std::string fileName = std::string("/").append(theRace.getFileName());
   File raceFile = LittleFS.open(fileName.c_str(), "w");
   if (!raceFile) {
     ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) failed", fileName.c_str());
+    checkDisk(); // just for debug
     return;
   }
   serializeJson(raceJson, raceFile);
   raceFile.close();
 
-  checkDisk(); // just for debug
+  uint64_t stop_time = micros();
+  uint32_t tot_time = stop_time - start_time;
+  ESP_LOGI(TAG,"Saved Race as %s time %d us", fileName.c_str(),tot_time );
 
+//  checkDisk(); // just for debug
 }
 
 void vTaskRaceDB( void *pvParameters )
@@ -878,6 +886,10 @@ void vTaskRaceDB( void *pvParameters )
   // Send Race setup to GUI
   ESP_LOGI(TAG,"Send Race to GUI");
   theRace.send_ConfigMsg(queueGFX);
+
+  int lastAutoSaveMinute = rtc.getMinute();
+  bool autoSaveTainted = false;
+
 
   for( ;; )
   {
@@ -933,14 +945,13 @@ void vTaskRaceDB( void *pvParameters )
                     // We are withing grace period and RSS was better -> update lap!
                     iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI);
                     iTags[j].participant.updateLapTagIsCloser(newLapTime);
-
                   }
                 }
                 time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
               }
-
+              autoSaveTainted = true;
               iTags[j].participant.setUpdated(); // Make it redraw when GUI loop looks at it
               iTags[j].UpdateParticipantStatusInGUI();
               
@@ -1062,12 +1073,16 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_LOAD_RACE:
         {
           ESP_LOGI(TAG,"Received: MSG_ITAG_LOAD_RACE MSG:0x%x", msg.LoadRace.header.msgType);
+          lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
+          autoSaveTainted = false;
           loadRace();
           break;
         }
         case MSG_ITAG_SAVE_RACE:
         {
           ESP_LOGI(TAG,"Received: MSG_ITAG_SAVE_RACE MSG:0x%x", msg.SaveRace.header.msgType);
+          lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
+          autoSaveTainted = false;
           saveRace();
           break;
         }
@@ -1077,12 +1092,24 @@ void vTaskRaceDB( void *pvParameters )
           // This is used to not accedently count a lap in "too short laps"
           refreshTagGUI();
           //rtc.setTime(rtc.getEpoch()+30,0); //DEBUG fake faster time for testing REMOVE
+
+          int nowMinute = rtc.getMinute();
+          if (lastAutoSaveMinute != nowMinute) {
+            // Autosave each 5min if tainted (e.g. something changed)
+            if (autoSaveTainted && nowMinute % 5 == 0) {
+              lastAutoSaveMinute = nowMinute;
+              autoSaveTainted = false;
+              saveRace();
+            }
+          }
           break;
         }
         // Broadcast Messages
         case MSG_RACE_START:
         {
           ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+          lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
+          autoSaveTainted = true;
           theRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
           raceStartiTags(msg.Broadcast.RaceStart.startTime);
           break;
@@ -1090,6 +1117,8 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_RACE_CLEAR:
         {
           ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+          lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
+          autoSaveTainted = true;
           raceCleariTags();
           break;
         }
