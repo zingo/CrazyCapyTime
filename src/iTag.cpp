@@ -16,7 +16,8 @@
 
 #define TAG "iTAG"
 
-void refreshTagGUI();
+static void refreshTagGUI();
+static void saveGlobalConfig();
 
 // We will only connect the first time to config the tag, get battery info
 // and activate it for the race, then it will handle the lap counting and timeing on the
@@ -51,6 +52,11 @@ class Race {
 
     void receive_ConfigMsg(msg_RaceConfig *raceConfig)
     {
+      bool globalConfigIsUpdated = false;
+      if (fileName != std::string(raceConfig->fileName)) {
+        // Current race filename changes -> save global config
+        globalConfigIsUpdated = true;
+      }
       fileName = std::string(raceConfig->fileName);
       name = std::string(raceConfig->name);
       distance = raceConfig->distance;
@@ -60,6 +66,10 @@ class Race {
       raceStartInTime = raceConfig->raceStartInTime;
       if(laps == 0) {
         laps = 1; // Should never be 0 but if it is lets fix it
+      }
+      if (globalConfigIsUpdated) {
+        // Something in the global config has changes, save it.
+        saveGlobalConfig();
       }
     }
 
@@ -114,6 +124,7 @@ class Race {
     time_t getRaceStartInTime() {return raceStartInTime;}
     time_t getRaceStart() {return raceStart;}
 
+    void setFileName(std::string inName) {fileName=inName;}
     void setName(std::string inName) {name=inName;}
     void setDistance(uint32_t inDist) {distance=inDist;}
     void setLaps(uint32_t inLaps) {laps=inLaps;};
@@ -578,6 +589,67 @@ static void checkDisk()
   ESP_LOGI(TAG,"-----------------------------");
 }
 
+static void loadGlobalConfig()
+{
+  std::string fileName = std::string("/CrazyCapyTime.json");
+
+  File raceFile = LittleFS.open(fileName.c_str(), "r");
+  if (!raceFile) {
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR: LittleFS open(%s) for read failed",fileName.c_str());
+    checkDisk(); // just for debug
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR: LittleFS open(%s) for read failed",fileName.c_str());
+    return;
+  }
+
+  DynamicJsonDocument raceJson(50000);
+  DeserializationError err = deserializeJson(raceJson, raceFile);
+  raceFile.close();
+  if (err) {
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR: deserializeJson() failed with code %s",err.f_str());
+    checkDisk(); // just for debug
+    return;
+  }
+
+
+  std::string version = raceJson["fileformatversion"];
+
+  if ( ! (version == "0.1")) {
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR fileformatversion=%s != 0.1 (NOK) Try anyway JSON is kind of build for this.",version.c_str());
+  }
+
+  std::string appname = raceJson["Appname"]; // "CrazyCapyTime";
+  std::string filetype = raceJson["filetype"]; // "globalconfig";
+
+  if ( ! ((appname == "CrazyCapyTime") && (filetype == "filetype"))) {
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR Appname=%s filetype=%s",appname.c_str() ,filetype.c_str());
+  }
+  std::string currentRace = raceJson["currentRace"];
+  theRace.setFileName(currentRace);
+
+}
+
+
+static void saveGlobalConfig()
+{
+  DynamicJsonDocument raceJson(50000);
+  raceJson["Appname"] = "CrazyCapyTime";
+  raceJson["filetype"] = "globalconfig";
+  raceJson["fileformatversion"] = "0.1";
+  raceJson["currentRace"] = theRace.getFileName();
+
+  std::string fileName = std::string("/CrazyCapyTime.json");
+  File raceFile = LittleFS.open(fileName.c_str(), "w");
+  if (!raceFile) {
+    ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) for write failed", fileName.c_str());
+    checkDisk(); // just for debug
+    ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) for write failed", fileName.c_str());
+    return;
+  }
+  serializeJson(raceJson, raceFile);
+  raceFile.close();
+}
+
+
 static void loadRace()
 {
   checkDisk(); // just for debug
@@ -585,7 +657,7 @@ static void loadRace()
 
   File raceFile = LittleFS.open(fileName.c_str(), "r");
   if (!raceFile) {
-    ESP_LOGE(TAG,"ERROR: LittleFS open(%s) failed",fileName.c_str());
+    ESP_LOGE(TAG,"ERROR: LittleFS open(%s) for read failed",fileName.c_str());
     return;
   }
 
@@ -598,9 +670,9 @@ static void loadRace()
   }
   
 
-  String output = "";
-  serializeJsonPretty(raceJson, output);
-  ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
+  //String output = "";
+  //serializeJsonPretty(raceJson, output);
+  //ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
   std::string version = raceJson["fileformatversion"];
 
   if ( ! (version == "0.3")) {
@@ -791,14 +863,6 @@ void vTaskRaceDB( void *pvParameters )
   */
   configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
-  ESP_LOGI(TAG,"Setup Race");
-  // TODO Load Global Race Config, and then current race
-
-
-  // Send Race setup to GUI
-  ESP_LOGI(TAG,"Send Race to GUI");
-  theRace.send_ConfigMsg(queueGFX);
-
   // Add all Participants in race to race page
   for(int handleDB=0; handleDB<ITAG_COUNT; handleDB++)
   {
@@ -806,6 +870,14 @@ void vTaskRaceDB( void *pvParameters )
     // Use index into iTags as the "secret" handleDB
     AddParticipantToGFX(handleDB, iTags[handleDB].participant,iTags[handleDB].color0,iTags[handleDB].color1); 
   }
+
+  ESP_LOGI(TAG,"Setup Race");
+  loadGlobalConfig();
+  loadRace();
+
+  // Send Race setup to GUI
+  ESP_LOGI(TAG,"Send Race to GUI");
+  theRace.send_ConfigMsg(queueGFX);
 
   for( ;; )
   {
@@ -1034,7 +1106,7 @@ void vTaskRaceDB( void *pvParameters )
       }
     }
   }
-    vTaskDelete( NULL ); // Should never be reached
+  vTaskDelete( NULL ); // Should never be reached
 }
 
 // WARNING Executes in the timer deamon contex, NO blocking and NO touching of our data, we will just send a msg to out thread and handle everything there.
@@ -1043,11 +1115,11 @@ void vTaskRaceDBTimer2000( TimerHandle_t xTimer )
   //Send a tick message to our message queue to do all work in our own thread
   msg_RaceDB msg;
   msg.Timer.header.msgType = MSG_ITAG_TIMER_2000;
-  //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%x handleDB:0x%08x", msg.Timer.header.msgType);
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%x", msg.Timer.header.msgType);
   BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)0); //No blocking
   if( xReturned != pdPASS )
   {
-    ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_TIMER_2000 MSG:0x%x handleDB:0x%08x Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
+    ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_TIMER_2000 MSG:0x%x Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
   }
 }
 

@@ -116,8 +116,8 @@ class guiParticipant {
     lv_obj_t * labelBattery;
 
     // Graph
-    lv_chart_series_t * seriesLaps;
-    lv_chart_series_t * seriesRSSI;
+    lv_chart_series_t * seriesLaps = nullptr;;
+    lv_chart_series_t * seriesRSSI = nullptr;;
 
     bool inRace;
     // RaceTab (only valid if inRace is true)
@@ -682,8 +682,11 @@ static void gfxClearAllParticipantData()
   ESP_LOGI(TAG,"gfxClearAllParticipantData()");
   for(uint32_t handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
   {
+      ESP_LOGI(TAG,"gfxClearAllParticipantData() %d",handleGFX);
     guiParticipants[handleGFX].laps = 0;
-    lv_chart_set_all_value(chartLaps, guiParticipants[handleGFX].seriesLaps, LV_CHART_POINT_NONE);
+    if(guiParticipants[handleGFX].seriesLaps) {
+      lv_chart_set_all_value(chartLaps, guiParticipants[handleGFX].seriesLaps, LV_CHART_POINT_NONE);
+    }
     //Keep this ??  lv_chart_set_all_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, LV_CHART_POINT_NONE)
   }
 }
@@ -1372,88 +1375,97 @@ void updateGUITime()
 
 void loopHandlLVGL()
 {
-  msg_GFX msg;
-  while ( xQueueReceive(queueGFX, &(msg), (TickType_t)0) == pdPASS)  // Don't block main loop just take a peek
+  for( ;; )
   {
-    switch(msg.header.msgType) {
-      case MSG_GFX_UPDATE_USER_DATA:
-      {
-        //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d,connectionStatus:%d",
-        //        msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime, msg.Update.connectionStatus);
-        gfxUpdateParticipantData(msg.UpdateUserData);
-        // Done! No response on this msg
-        break;
-      }
-      case MSG_GFX_UPDATE_USER_STATUS:
-      {
-        //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
-        //              msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
-        gfxUpdateParticipantStatus(msg.UpdateStatus);
-        break;
-      }
-      case MSG_GFX_UPDATE_USER:
-      {
-        //ESP_LOGI(TAG,"Received: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
-        //             msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
-        gfxUpdateParticipant(msg.UpdateUser);
-        // Done! No response on this msg
-        break;
-      }
-      case MSG_GFX_ADD_USER:
-      {
-        //ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
-        //             msg.AddUser.header.msgType, msg.AddUser.handleDB, AddUser.Add.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
-        uint32_t handle = gfxAddParticipant(msg.AddUser);
+    msg_GFX msg;
+    while ( xQueueReceive(queueGFX, &(msg), (TickType_t)portMAX_DELAY) == pdPASS)
+    {
+      //ESP_LOGE(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%x -----",msg.header.msgType);
+      switch(msg.header.msgType) {
+        case MSG_GFX_TIMER:
+        {
+          static unsigned long lastTimeUpdate = 356*24*60*60; //start on something we will never match like 1971
+          unsigned long now = rtc.getEpoch();
+          if (lastTimeUpdate != now) {
+            lastTimeUpdate = now;
+            updateGUITime();
+          }
+          lv_timer_handler();
+          // Done! No response on this msg
+          break;        
+        }
+        case MSG_GFX_UPDATE_USER_DATA:
+        {
+          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d,connectionStatus:%d",
+          //        msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime, msg.Update.connectionStatus);
+          gfxUpdateParticipantData(msg.UpdateUserData);
+          // Done! No response on this msg
+          break;
+        }
+        case MSG_GFX_UPDATE_USER_STATUS:
+        {
+          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+          //              msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
+          gfxUpdateParticipantStatus(msg.UpdateStatus);
+          break;
+        }
+        case MSG_GFX_UPDATE_USER:
+        {
+          //ESP_LOGI(TAG,"Received: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
+          //             msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
+          gfxUpdateParticipant(msg.UpdateUser);
+          // Done! No response on this msg
+          break;
+        }
+        case MSG_GFX_ADD_USER:
+        {
+          //ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
+          //             msg.AddUser.header.msgType, msg.AddUser.handleDB, AddUser.Add.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
+          uint32_t handle = gfxAddParticipant(msg.AddUser);
 
-        msg_RaceDB msgResponse;
-        msgResponse.AddedToGFX.header.msgType = MSG_ITAG_GFX_ADD_USER_RESPONSE;
-        msgResponse.AddedToGFX.handleDB = msg.AddUser.handleDB;
-        msgResponse.AddedToGFX.handleGFX = handle;
-        if (handle != UINT32_MAX) {
-          msgResponse.AddedToGFX.wasOK = true;
-        }
-        else {
-          msgResponse.AddedToGFX.wasOK = false;
-        }
-        // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
-        //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
-        BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
-        // TODO handle error? xReturned;
+          msg_RaceDB msgResponse;
+          msgResponse.AddedToGFX.header.msgType = MSG_ITAG_GFX_ADD_USER_RESPONSE;
+          msgResponse.AddedToGFX.handleDB = msg.AddUser.handleDB;
+          msgResponse.AddedToGFX.handleGFX = handle;
+          if (handle != UINT32_MAX) {
+            msgResponse.AddedToGFX.wasOK = true;
+          }
+          else {
+            msgResponse.AddedToGFX.wasOK = false;
+          }
+          // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+          //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
+          BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
+          // TODO handle error? xReturned;
 
-        break;
+          break;
+        }
+          // Broadcast Messages
+          case MSG_RACE_START:
+          {
+            ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+            // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
+            break;
+          }
+          case MSG_RACE_CLEAR:
+          {
+            ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+            gfxClearAllParticipantData();
+            break;
+          }
+          case MSG_RACE_CONFIG:
+          {
+            //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
+            guiRace.receiveConfigRace(&msg.Broadcast.RaceConfig);
+            break;
+          }
+          default:
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
+          //break;
       }
-        // Broadcast Messages
-        case MSG_RACE_START:
-        {
-          ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
-          // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
-          break;
-        }
-        case MSG_RACE_CLEAR:
-        {
-          ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
-          gfxClearAllParticipantData();
-          break;
-        }
-        case MSG_RACE_CONFIG:
-        {
-          //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
-          guiRace.receiveConfigRace(&msg.Broadcast.RaceConfig);
-          break;
-        }
-        default:
-        ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
-        //break;
+      //ESP_LOGE(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%x DONE -----",msg.header.msgType);
     }
   }
-
-  static unsigned long lastTimeUpdate = 356*24*60*60; //start on something we will never match like 1971
-  unsigned long now = rtc.getEpoch();
-  if (lastTimeUpdate != now) {
-    lastTimeUpdate = now;
-    updateGUITime();
-  }
-  lv_timer_handler();
 }
 
 // ######################################################## GFX & Touch Driver stuff
@@ -1497,8 +1509,13 @@ void lvgl_touchPadReadCallback(lv_indev_drv_t *indev_driver, lv_indev_data_t *da
   }
 }
 
-void initLVGL()
+void vTaskLVGL( void *pvParameters )
 {
+  /* The parameter value is expected to be 2 as 2 is passed in the
+     pvParameters value in the call to xTaskCreate() below. 
+  */
+  configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+
   ESP_LOGI(TAG, "Setup GFX");
   gfx->begin();
   gfx->fillScreen(BLACK);
@@ -1519,7 +1536,6 @@ void initLVGL()
   if (!disp_draw_buf)
   {
     ESP_LOGE(TAG, "LVGL disp_draw_buf allocate failed!");
-    return;
   }
   else
   {
@@ -1545,6 +1561,70 @@ void initLVGL()
 
     createGUI(); // MUST be done before adding participants
     ESP_LOGI(TAG, "Setup GFX done");
+
+    for(;;)
+    {
+      ESP_LOGE(TAG,"----- loopHandlLVGL() -----");
+      loopHandlLVGL();
+      delay(5);
+    }
   }
+
+  ESP_LOGE(TAG,"FATAL ERROR: in vTaskLVGL() Setup Failed");
+  ESP_LOGE(TAG,"----- esp_restart() -----");
+  esp_restart();
+  vTaskDelete( NULL ); // Should never be reached in the good case
+}
+
+
+// WARNING Executes in the timer deamon contex, NO blocking and NO touching of our data, we will just send a msg to out thread and handle everything there.
+void vTaskGUITimer( TimerHandle_t xTimer )
+{
+  //Send a tick message to our message queue to do all work in our own thread
+  msg_GFX msg;
+  msg.Timer.header.msgType = MSG_GFX_TIMER;
+  //ESP_LOGI(TAG,"Send: MSG_GFX_TIMER MSG:0x%x", msg.Timer.header.msgType);
+  BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)0); //No blocking
+  if( xReturned != pdPASS )
+  {
+    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_TIMER MSG:0x%x  Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
+  }
+}
+
+void initLVGL()
+{
+  // Start LVGL Task
+  BaseType_t xReturned;
+  TaskHandle_t xHandle = NULL;
+  /* Create the task, storing the handle. */
+  xReturned = xTaskCreate(
+                  vTaskLVGL,         /* Function that implements the task. */
+                  "GUI",             /* Text name for the task. */
+                  4096,              /* Stack size in words, not bytes. */
+                  ( void * ) 2,      /* Parameter passed into the task. */
+                  5,                 /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandle );        /* Used to pass out the created task's handle. */
+
+  if( xReturned != pdPASS )
+  {
+    ESP_LOGE(TAG,"FATAL ERROR: xTaskCreate(vTaskRaceDB, GUI,..) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
+  }
+
+  TimerHandle_t timerHandle = xTimerCreate("GUITimer", pdMS_TO_TICKS(100),pdTRUE, (void *) 0, vTaskGUITimer);
+  if( timerHandle == NULL ) {
+    ESP_LOGE(TAG,"FATAL ERROR: xTimerCreate(GUITimer,...) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
+  }
+
+  if( xTimerStart( timerHandle, pdMS_TO_TICKS(2000) ) != pdPASS ) {
+    ESP_LOGE(TAG,"FATAL ERROR: xTimerStart(GUITimer) Failed");
+    ESP_LOGE(TAG,"----- esp_restart() -----");
+    esp_restart();
+  }
+
+
 }
 

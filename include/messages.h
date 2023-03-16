@@ -200,12 +200,15 @@ union msg_GFX
   msg_UpdateParticipant UpdateUser;
   msg_UpdateParticipantData UpdateUserData;
   msg_UpdateParticipantStatus UpdateStatus;
+  msg_Timer Timer;
 };
 
 #define MSG_GFX_ADD_USER           0x3000 //msg_AddParticipant queueGFX
 #define MSG_GFX_UPDATE_USER        0x3001 //msg_UpdateParticipant queueGFX
 #define MSG_GFX_UPDATE_USER_DATA   0x3002 //msg_UpdateParticipantData queueGFX
 #define MSG_GFX_UPDATE_USER_STATUS 0x3003 //msg_UpdateParticipantStatus queueGFX
+// "internal" update GUI timer tick
+#define MSG_GFX_TIMER              0x3100 //msg_Timer queueGFX
 
 extern QueueHandle_t queueRaceDB;  // msg_RaceDB Task/Database manager is blocked reading from this
 extern QueueHandle_t queueBTConnect;     // msg_iTagDetected Bluetooth task is blocked reading from this
