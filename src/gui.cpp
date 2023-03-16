@@ -647,7 +647,7 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
 static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time)
 {
 
-  ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(  handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
+  //ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(  handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
   guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = lap;
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
@@ -679,10 +679,9 @@ static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
 
 static void gfxClearAllParticipantData()
 {
-  ESP_LOGI(TAG,"gfxClearAllParticipantData()");
+//  ESP_LOGI(TAG,"gfxClearAllParticipantData()");
   for(uint32_t handleGFX = 0; handleGFX < ITAG_COUNT; handleGFX++)
   {
-      ESP_LOGI(TAG,"gfxClearAllParticipantData() %d",handleGFX);
     guiParticipants[handleGFX].laps = 0;
     if(guiParticipants[handleGFX].seriesLaps) {
       lv_chart_set_all_value(chartLaps, guiParticipants[handleGFX].seriesLaps, LV_CHART_POINT_NONE);
@@ -867,9 +866,9 @@ static void createGUITabParticipant(lv_obj_t * parent)
 
 void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
 {
-  ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
-        raceConfig->header.msgType, raceConfig->fileName, raceConfig->name,raceConfig->distance, raceConfig->laps, 
-        raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
+  //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+  //      raceConfig->header.msgType, raceConfig->fileName, raceConfig->name,raceConfig->distance, raceConfig->laps, 
+  //      raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
   std::string fileName = std::string(raceConfig->fileName);
   std::string name = std::string(raceConfig->name);
   std::string distance = std::to_string(raceConfig->distance);
@@ -926,9 +925,9 @@ void guiRace::sendConfigRace()
   msg.Broadcast.RaceConfig.updateCloserTime = configRaceUpdateCloserTime;
   msg.Broadcast.RaceConfig.raceStartInTime = configRaceRaceStartIn;
 
-  ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%d distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
-        msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
-        msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%d distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+  //      msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
+  //      msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
 
   BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
   if (!xReturned) {
@@ -1443,7 +1442,7 @@ void loopHandlLVGL()
           // Broadcast Messages
           case MSG_RACE_START:
           {
-            ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+            //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
             // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
             break;
           }
