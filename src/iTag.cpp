@@ -292,7 +292,7 @@ class iTag {
 };
 
 #define ITAG_COLOR_PINK     0xfdb9c8 // Lemonade
-#define ITAG_COLOR_WHITE    0xFBFEF8 // Pearl White
+#define ITAG_COLOR_WHITE    0xeBeEe8 //0xFBFEF8 // Pearl White
 #define ITAG_COLOR_ORANGE   0xFA8128 // Tangerine
 #define ITAG_COLOR_DARKBLUE 0x1034a6 // Egyptian Blue,    0x0b0b45 // Navy blue
 #define ITAG_COLOR_BLACK    0x000000 // Black
