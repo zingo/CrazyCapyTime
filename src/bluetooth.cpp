@@ -206,7 +206,7 @@ static void vTaskBTConnect( void *pvParameters )
   /* The parameter value is expected to be 1 as 1 is passed in the
      pvParameters value in the call to xTaskCreate() below. 
   */
-  configASSERT( ( ( uint32_t ) pvParameters ) == 1 );
+  //configASSERT( ( ( uint32_t ) pvParameters ) == 1 );
 
   BLEScan* pBLEScan;
   ESP_LOGI(TAG,"BLEDevice init");
@@ -284,15 +284,14 @@ void initBluetooth()
 {
   // Start BT Task (scan and inital connect&config)
   BaseType_t xReturned;
-  TaskHandle_t xHandle = NULL;
   /* Create the task, storing the handle. */
   xReturned = xTaskCreate(
                   vTaskBTConnect,       /* Function that implements the task. */
                   "BTConnect",          /* Text name for the task. */
-                  4096,                 /* Stack size in words, not bytes. */
-                  ( void * ) 1,         /* Parameter passed into the task. */
-                  20,                   /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
-                  &xHandle );           /* Used to pass out the created task's handle. */
+                  TASK_BT_STACK,        /* Stack size in words, not bytes. */
+                  NULL,                 /* Parameter passed into the task. */
+                  TASK_BT_PRIO,         /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandleBT );         /* Used to pass out the created task's handle. */
 
   if( xReturned != pdPASS )
   {

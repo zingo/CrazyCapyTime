@@ -37,9 +37,14 @@ uint32_t raceStartIn = 0;
 bool raceOngoing = false;
 
 
-QueueHandle_t queueRaceDB;
-QueueHandle_t queueBTConnect;
-QueueHandle_t queueGFX; 
+QueueHandle_t queueBTConnect = NULL;
+QueueHandle_t queueRaceDB = NULL;
+QueueHandle_t queueGFX = NULL; 
+
+TaskHandle_t xHandleBT = NULL;
+TaskHandle_t xHandleRaceDB = NULL;
+TaskHandle_t xHandleGUI = NULL;
+
 
 void initMessageQueues()
 {
@@ -192,5 +197,13 @@ void loop()
   if ((lastTimeUpdate+5*60) <= now) { //one per 5 min
     lastTimeUpdate = now;
     showHeapInfo(); //Monitor heap to see if memory leaks
+    ESP_LOGI(TAG,"Main   used stack: %d",uxTaskGetStackHighWaterMark(nullptr));
+    ESP_LOGI(TAG,"BT     used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleBT),TASK_BT_STACK);
+//#if NIMBLE_CFG_CONTROLLER
+//    ESP_LOGI(TAG,"BT ll  used stack: %d",nimble_port_freertos_get_ll_hwm());
+//#endif
+//    ESP_LOGI(TAG,"BT hs  used stack: %d",nimble_port_freertos_get_hs_hwm());
+    ESP_LOGI(TAG,"RaceDB used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleRaceDB),TASK_RACEDB_STACK);
+    ESP_LOGI(TAG,"GUI    used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleGUI),TASK_GUI_STACK);
   }
 }

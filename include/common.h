@@ -21,6 +21,20 @@ extern ESP32Time rtc;
 extern uint32_t raceStartIn;
 extern bool raceOngoing;
 
+#define TASK_BT_PRIO 20
+#define TASK_RACEDB_PRIO 10
+#define TASK_GUI_PRIO 5
+
+// Stack size in words, not bytes.
+#define TASK_BT_STACK (4*1024)
+#define TASK_RACEDB_STACK (8*1024)
+#define TASK_GUI_STACK (32*1024)
+
+
+extern TaskHandle_t xHandleBT;
+extern TaskHandle_t xHandleRaceDB;
+extern TaskHandle_t xHandleGUI;
+
 // Broadcast...() - Don't touch data, just send messages, can be used from any context
 void BroadcastRaceClear();
 void BroadcastRaceStart(time_t raceStartTime);

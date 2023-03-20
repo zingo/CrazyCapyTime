@@ -273,7 +273,7 @@ static void taEdit_event_cb(lv_event_t * e)
 
   // Name updated -> send update signal to RaceDB, and update signal will be send back
   // that will resync name in all tabs.
-  if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED)
+  if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED || code == LV_EVENT_CANCEL)
   {
     uint32_t color0 = lv_color_to32(lv_obj_get_style_bg_color(guiParticipants[handleGFX].ledColor0, LV_PART_MAIN));
     uint32_t color1 = lv_color_to32(lv_obj_get_style_bg_color(guiParticipants[handleGFX].ledColor1, LV_PART_MAIN));
@@ -1513,7 +1513,7 @@ void vTaskLVGL( void *pvParameters )
   /* The parameter value is expected to be 2 as 2 is passed in the
      pvParameters value in the call to xTaskCreate() below. 
   */
-  configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+  //configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
   ESP_LOGI(TAG, "Setup GFX");
   gfx->begin();
@@ -1594,15 +1594,15 @@ void initLVGL()
 {
   // Start LVGL Task
   BaseType_t xReturned;
-  TaskHandle_t xHandle = NULL;
+  
   /* Create the task, storing the handle. */
   xReturned = xTaskCreate(
                   vTaskLVGL,         /* Function that implements the task. */
                   "GUI",             /* Text name for the task. */
-                  4096,              /* Stack size in words, not bytes. */
-                  ( void * ) 2,      /* Parameter passed into the task. */
-                  5,                 /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
-                  &xHandle );        /* Used to pass out the created task's handle. */
+                  TASK_GUI_STACK,    /* Stack size in words, not bytes. */
+                  NULL,              /* Parameter passed into the task. */
+                  TASK_GUI_PRIO,     /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandleGUI );     /* Used to pass out the created task's handle. */
 
   if( xReturned != pdPASS )
   {

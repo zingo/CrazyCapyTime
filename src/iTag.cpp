@@ -869,7 +869,7 @@ void vTaskRaceDB( void *pvParameters )
   /* The parameter value is expected to be 2 as 2 is passed in the
      pvParameters value in the call to xTaskCreate() below. 
   */
-  configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
+  //configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
   // Add all Participants in race to race page
   for(int handleDB=0; handleDB<ITAG_COUNT; handleDB++)
@@ -1006,8 +1006,8 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_ITAG_UPDATE_USER:
         {
-          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d", 
-          //     msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d", 
+               msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
 
           uint32_t handleDB = msg.UpdateParticipant.handleDB;
           iTags[handleDB].participant.setHandleGFX(msg.UpdateParticipant.handleGFX, true);
@@ -1156,15 +1156,14 @@ void initRaceDB()
 {
   // Start iTag Task
   BaseType_t xReturned;
-  TaskHandle_t xHandle = NULL;
   /* Create the task, storing the handle. */
   xReturned = xTaskCreate(
                   vTaskRaceDB,       /* Function that implements the task. */
                   "RaceDB",          /* Text name for the task. */
-                  4096,              /* Stack size in words, not bytes. */
-                  ( void * ) 2,      /* Parameter passed into the task. */
-                  5,                 /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
-                  &xHandle );       /* Used to pass out the created task's handle. */
+                  TASK_RACEDB_STACK, /* Stack size in words, not bytes. */
+                  NULL,              /* Parameter passed into the task. */
+                  TASK_RACEDB_PRIO,  /* Priority  0-(configMAX_PRIORITIES-1)   idle = 0 = tskIDLE_PRIORITY*/
+                  &xHandleRaceDB );  /* Used to pass out the created task's handle. */
 
   if( xReturned != pdPASS )
   {
