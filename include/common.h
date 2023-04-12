@@ -30,7 +30,6 @@ extern bool raceOngoing;
 #define TASK_RACEDB_STACK (8*1024)
 #define TASK_GUI_STACK (32*1024)
 
-
 extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;
 extern TaskHandle_t xHandleGUI;
@@ -40,3 +39,11 @@ void BroadcastRaceClear();
 void BroadcastRaceStart(time_t raceStartTime);
 
 void startRaceCountdown();
+
+enum class HWPlatform : uint8_t
+{
+    Sunton_800x480,
+    MakerFab_800x480,
+};
+
+extern HWPlatform HW_Platform; // Setup befoer threads are created and never changes so it can be used by all threads.

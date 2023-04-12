@@ -34,7 +34,6 @@
 
 #define TAG "GFX"
 
-
 #define TFT_BL 2
 #define GFX_BL DF_GFX_BL // default backlight pin, you may replace DF_GFX_BL to actual backlight pin
 
@@ -46,22 +45,14 @@ static Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
     8 /* B0 */, 3 /* B1 */, 46 /* B2 */, 9 /* B3 */, 1 /* B4 */
 );
 
-#ifdef SUNTON_800x480
-#define RGB_PANEL_PREFERED_SPEED 14000000
-#endif
-
-#ifdef MAKERFAB_800x480
-#define RGB_PANEL_PREFERED_SPEED 16000000
-#endif
-
 //  ST7262 IPS LCD 800x480
-static Arduino_RPi_DPI_RGBPanel *gfx = new Arduino_RPi_DPI_RGBPanel(
-    bus,
-    800 /* width */, 0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
-    480 /* height */, 0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
-    1 /* pclk_active_neg */, RGB_PANEL_PREFERED_SPEED /* prefer_speed */, true /* auto_flush */);
+static Arduino_RPi_DPI_RGBPanel *gfx;
 
+// Include touch.h after gfx is declered, it is used inside that file
 #include "touch.h"
+#if defined(TOUCH_GT911)
+TAMC_GT911 *ts; //= TAMC_GT911(TOUCH_GT911_SDA, TOUCH_GT911_SCL, TOUCH_GT911_INT, TOUCH_GT911_RST, max(TOUCH_MAP_X1, TOUCH_MAP_X2), max(TOUCH_MAP_Y1, TOUCH_MAP_Y2));
+#endif
 
 // Setup screen resolution for LVGL
 static uint32_t screenWidth;
@@ -1516,6 +1507,19 @@ void vTaskLVGL( void *pvParameters )
   //configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
   ESP_LOGI(TAG, "Setup GFX");
+  
+  int32_t prefer_speed = 16000000; // MAKERFAB_800x480
+  if (HW_Platform == HWPlatform::Sunton_800x480 ) {
+    // SUNTON_800x480
+    prefer_speed = 14000000;
+  }
+
+  gfx = new Arduino_RPi_DPI_RGBPanel(
+    bus,
+    800 /* width */, 0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
+    480 /* height */, 0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
+    1 /* pclk_active_neg */, prefer_speed /* prefer_speed */, true /* auto_flush */);
+
   gfx->begin();
   gfx->fillScreen(BLACK);
 #ifdef TFT_BL

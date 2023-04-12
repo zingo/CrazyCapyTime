@@ -23,6 +23,7 @@
 #include <ESP32Time.h>
 #include "FS.h"
 #include <LittleFS.h>
+#include <Wire.h>
 #include "common.h"
 #include "messages.h"
 #include "gui.h"
@@ -45,6 +46,7 @@ TaskHandle_t xHandleBT = NULL;
 TaskHandle_t xHandleRaceDB = NULL;
 TaskHandle_t xHandleGUI = NULL;
 
+HWPlatform HW_Platform = HWPlatform::MakerFab_800x480;
 
 void initMessageQueues()
 {
@@ -100,10 +102,8 @@ void BroadcastRaceStart(time_t raceStartTime)
   msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
   msgGFX.Broadcast.RaceStart.startTime = raceStartTime;
   //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
-  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
-  
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress  
 }
-
 
 void startRaceCountdown()
 {
@@ -158,6 +158,74 @@ void initLittleFS()
   ESP_LOGI(TAG, "LittleFS started");
 }
 
+#if 0
+void i2cscan(int sda, int scl)
+{
+  byte error, address;
+  int nDevices;
+ 
+  Wire.begin(sda, scl);
+
+  ESP_LOGI(TAG, "I2C Scanning (%d,%d)...",sda,scl); 
+  nDevices = 0;
+  for(address = 1; address < 127; address++ )
+  {
+    // The i2c_scanner uses the return value of
+    // the Write.endTransmisstion to see if
+    // a device did acknowledge to the address.
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+ 
+    if (error == 0) {
+      ESP_LOGI(TAG, "I2C device found at address  0x%02x <--",address);  
+      nDevices++;
+    }
+    else if (error==4) {
+      ESP_LOGI(TAG, "I2C Unknown error at address 0x%02x",address);  
+    }    
+  }
+  if (nDevices == 0) {
+    ESP_LOGI(TAG, "No I2C devices found."); 
+  }
+  else {
+    ESP_LOGI(TAG, "done");
+  }
+  Wire.end();
+}
+#endif
+
+HWPlatform autoDetectHW()
+{
+//  i2cscan(19,20); //SUNTON_800x480
+//  i2cscan(17,18); //MAKERFAB_800x480
+
+  //SUNTON_800x480
+  byte error;
+  Wire.begin(19, 20);
+  Wire.beginTransmission(0x5d); //GT911 Touch controller
+  error = Wire.endTransmission();
+  Wire.end();
+
+  if (error == 0) {
+    ESP_LOGI(TAG, "I2C GT911 Touch device found on pin 19,20 -> SUNTON_800x480"); 
+    return HWPlatform::Sunton_800x480;
+  }
+
+  //MAKERFAB_800x480
+  Wire.begin(17, 18);
+  Wire.beginTransmission(0x5d); //GT911 Touch controller
+  error = Wire.endTransmission();
+  Wire.end();
+
+  if (error == 0) {
+    ESP_LOGI(TAG, "I2C GT911 Touch device found on pin 17,18 -> MAKERFAB_800x480"); 
+    return HWPlatform::MakerFab_800x480;
+  }
+
+  ESP_LOGI(TAG, "No I2C GT911 Touch device found. Fallback to MAKERFAB_800x480"); 
+  return HWPlatform::MakerFab_800x480; // Fall back in case of errors
+}
+
 void setup()
 {
   raceStartIn = 0;
@@ -165,6 +233,8 @@ void setup()
   //delay(1000);
   Serial.begin(115200);
   ESP_LOGI(TAG, "Crazy Capy Time setup");
+
+  HW_Platform = autoDetectHW();
 
   initMessageQueues(); // Must be called before starting all tasks as theu might use the messages queues
   initLVGL();

@@ -21,20 +21,7 @@
 
 
 /* uncomment for GT911 */
- #define TOUCH_GT911
-
-#ifdef SUNTON_800x480
- #define TOUCH_GT911_SCL 20
- #define TOUCH_GT911_SDA 19
- #define TOUCH_MAP_X1 480
- #define TOUCH_MAP_Y1 272
-#endif
-#ifdef MAKERFAB_800x480
- #define TOUCH_GT911_SCL 18
- #define TOUCH_GT911_SDA 17
- #define TOUCH_MAP_X1 800
- #define TOUCH_MAP_Y1 480
-#endif
+#define TOUCH_GT911
 
 
  #define TOUCH_GT911_INT -1
@@ -67,7 +54,10 @@ bool touch_touched_flag = true, touch_released_flag = true;
 #elif defined(TOUCH_GT911)
 #include <Wire.h>
 #include <TAMC_GT911.h>
-TAMC_GT911 ts = TAMC_GT911(TOUCH_GT911_SDA, TOUCH_GT911_SCL, TOUCH_GT911_INT, TOUCH_GT911_RST, max(TOUCH_MAP_X1, TOUCH_MAP_X2), max(TOUCH_MAP_Y1, TOUCH_MAP_Y2));
+
+extern TAMC_GT911 *ts;
+long ts_map_x1 = 800; // MAKERFAB_800x480
+long ts_map_y1 = 480; // MAKERFAB_800x480
 
 #elif defined(TOUCH_XPT2046)
 #include <XPT2046_Touchscreen.h>
@@ -125,9 +115,23 @@ void touch_init()
   ts.registerTouchHandler(touch);
 
 #elif defined(TOUCH_GT911)
-  Wire.begin(TOUCH_GT911_SDA, TOUCH_GT911_SCL);
-  ts.begin();
-  ts.setRotation(TOUCH_GT911_ROTATION);
+  uint8_t ts_scl = 18; // MAKERFAB_800x480
+  uint8_t ts_sda = 17; // MAKERFAB_800x480
+
+
+  if (HW_Platform == HWPlatform::Sunton_800x480 ) {
+    // SUNTON_800x480
+    ts_scl = 20;
+    ts_sda = 19;
+    ts_map_x1 = 480;
+    ts_map_y1 = 272;
+  }
+
+  ts = new TAMC_GT911(ts_sda, ts_scl, TOUCH_GT911_INT, TOUCH_GT911_RST, max(ts_map_x1, static_cast<long>(TOUCH_MAP_X2)), max(ts_map_y1, static_cast<long>(TOUCH_MAP_Y2)));
+
+  Wire.begin(ts_sda, ts_scl);
+  ts->begin();
+  ts->setRotation(TOUCH_GT911_ROTATION);
 
 #elif defined(TOUCH_XPT2046)
   SPI.begin(TOUCH_XPT2046_SCK, TOUCH_XPT2046_MISO, TOUCH_XPT2046_MOSI, TOUCH_XPT2046_CS);
@@ -168,15 +172,15 @@ bool touch_touched()
   }
 
 #elif defined(TOUCH_GT911)
-  ts.read();
-  if (ts.isTouched)
+  ts->read();
+  if (ts->isTouched)
   {
 #if defined(TOUCH_SWAP_XY)
-    touch_last_x = map(ts.points[0].y, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(ts.points[0].x, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(ts->points[0].y, ts_map_x1, TOUCH_MAP_X2, 0, gfx->width() - 1);
+    touch_last_y = map(ts->points[0].x, ts_map_y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
 #else
-    touch_last_x = map(ts.points[0].x, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(ts.points[0].y, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(ts->points[0].x, ts_map_x1, TOUCH_MAP_X2, 0, gfx->width() - 1);
+    touch_last_y = map(ts->points[0].y, ts_map_y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
 #endif
     return true;
   }
