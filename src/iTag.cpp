@@ -1056,7 +1056,7 @@ void vTaskRaceDB( void *pvParameters )
             {
               ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
               tm timeNow = rtc.getTimeStruct();
-              time_t lapStart = difftime(timeNow, theRace.getRaceStart());
+              time_t lapStart = difftime(mktime(&timeNow), theRace.getRaceStart());
               // TODO Now this will add a "lap block" so this ONLY works when participant is in "LAP AREA"
               // TODO maybe something like      time_t newLapTime = mktime(&timeNow) - theRace.getBlockNewLapTime(); // remove theRace.getBlockNewLapTime() to make it possible to detect next lap directly
               iTags[handleDB].participant.nextLap(lapStart,0);
