@@ -195,11 +195,7 @@ static void btnSave_event_cb(lv_event_t * e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * btn = lv_event_get_target(e);
     if(code == LV_EVENT_SHORT_CLICKED) {
-      msg_RaceDB msg;
-      msg.SaveRace.header.msgType = MSG_ITAG_SAVE_RACE;
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_SAVE_RACE MSG:0x%x handleDB:0x%08x", msg.SaveRace.header.msgType);
-      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  
-      // TODO log error xReturned show in GUI;
+      saveRace();
     }
 }
 

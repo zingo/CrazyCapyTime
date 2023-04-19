@@ -147,7 +147,7 @@ static void BroadcastRaceStart(time_t raceStartTime)
   msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
   msgGFX.Broadcast.RaceStart.startTime = raceStartTime;
   //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
-  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress  
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
 void startRaceCountdown()
@@ -170,6 +170,27 @@ static void startRace()
 
   //BroadcastRaceClear();
   BroadcastRaceStart(raceStartTime);
+}
+
+//TODO add CONTINUE_RACE and move code below, called from from DBloadRace() if race is ongoinf when it was saved
+void continueRace(time_t raceStartTime)
+{
+  raceStartIn = 0;
+  raceOngoing = true;
+
+  msg_GFX msgGFX;
+  msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
+  msgGFX.Broadcast.RaceStart.startTime = raceStartTime;
+  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+}
+
+void saveRace()
+{
+  msg_RaceDB msg;
+  msg.SaveRace.header.msgType = MSG_ITAG_SAVE_RACE;
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_SAVE_RACE MSG:0x%x handleDB:0x%08x", msg.SaveRace.header.msgType);
+  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  
 }
 
 void showHeapInfo()

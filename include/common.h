@@ -34,7 +34,11 @@ extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;
 extern TaskHandle_t xHandleGUI;
 
+void saveRace(); // Send signal to save race
+
+// TODO move below to signals to remove access to global variables
 void startRaceCountdown();
+void continueRace(time_t raceStartTime);
 
 enum class HWPlatform : uint8_t
 {

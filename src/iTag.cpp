@@ -17,7 +17,7 @@
 #define TAG "iTAG"
 
 static void refreshTagGUI();
-static void saveGlobalConfig();
+static void DBsaveGlobalConfig();
 
 // We will only connect the first time to config the tag, get battery info
 // and activate it for the race, then it will handle the lap counting and timeing on the
@@ -47,7 +47,9 @@ class Race {
       // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
       blockNewLapTime = ((170*distance/laps)/1000);
       updateCloserTime = 30;
-      raceStartInTime = RACE_COUNTDOWN;      
+      raceStartInTime = RACE_COUNTDOWN;
+      raceOngoing=false;
+      raceStart=0;
     }
 
     void receive_ConfigMsg(msg_RaceConfig *raceConfig)
@@ -69,7 +71,7 @@ class Race {
       }
       if (globalConfigIsUpdated) {
         // Something in the global config has changes, save it.
-        saveGlobalConfig();
+        DBsaveGlobalConfig();
       }
     }
 
@@ -123,12 +125,14 @@ class Race {
     time_t getUpdateCloserTime() {return updateCloserTime;}
     time_t getRaceStartInTime() {return raceStartInTime;}
     time_t getRaceStart() {return raceStart;}
+    bool isRaceOngoing() {return raceOngoing;}
 
     void setFileName(std::string inName) {fileName=inName;}
     void setName(std::string inName) {name=inName;}
     void setDistance(uint32_t inDist) {distance=inDist;}
     void setLaps(uint32_t inLaps) {laps=inLaps;};
     void setRaceStart(time_t inStart) {raceStart=inStart;}
+    void setRaceOngoing(bool race) {raceOngoing=race;}
 
   private:
     std::string fileName;
@@ -139,6 +143,7 @@ class Race {
     time_t updateCloserTime; // If we get a stronger RSSI signal during this time in seconds after a initial detection, the lap time is updated.
     time_t raceStartInTime;  // Race Start Countdown time
     // Ongoing Race stuff
+    bool raceOngoing;
     time_t raceStart;
 };
 
@@ -486,11 +491,10 @@ void iTag::reset()
   }
 }
 
-static uint32_t longestNonSeen = 0; // debug
-
 static void raceCleariTags()
 {
-  longestNonSeen = 0;
+  theRace.setRaceStart(0);
+  theRace.setRaceOngoing(false);
   for(int j=0; j<ITAG_COUNT; j++)
   {
     iTags[j].participant.clearLaps();
@@ -504,7 +508,16 @@ static void raceCleariTags()
 static void raceStartiTags(time_t raceStartTime)
 {
   theRace.setRaceStart(raceStartTime);
-  raceCleariTags(); //This will also refresh GUI
+  theRace.setRaceOngoing(true);
+  // Make sure all data is cleared
+  for(int j=0; j<ITAG_COUNT; j++)
+  {
+    iTags[j].participant.clearLaps();
+    iTags[j].participant.setCurrentLap(0,0);
+    iTags[j].participant.setUpdated();
+  }
+  refreshTagGUI();
+  saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
 }
 
 void refreshTagGUI()
@@ -520,10 +533,6 @@ void refreshTagGUI()
       time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
       uint32_t timeSinceLastSeen = difftime( timeFromRaceStart, lastSeenSinceStart);
       iTags[j].participant.setTimeSinceLastSeen(timeSinceLastSeen);
-
-      if (longestNonSeen <  timeSinceLastSeen) {
-        longestNonSeen = timeSinceLastSeen;
-      }
 
       if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {
         ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d timeSinceLastSeen: %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen(),timeSinceLastSeen);
@@ -585,7 +594,7 @@ static void checkDisk()
   ESP_LOGI(TAG,"-----------------------------");
 }
 
-static void loadGlobalConfig()
+static void DBloadGlobalConfig()
 {
   std::string fileName = std::string("/CrazyCapyTime.json");
 
@@ -621,11 +630,9 @@ static void loadGlobalConfig()
   }
   std::string currentRace = raceJson["currentRace"];
   theRace.setFileName(currentRace);
-
 }
 
-
-static void saveGlobalConfig()
+static void DBsaveGlobalConfig()
 {
   DynamicJsonDocument raceJson(50000);
   raceJson["Appname"] = "CrazyCapyTime";
@@ -646,7 +653,7 @@ static void saveGlobalConfig()
 }
 
 
-static void loadRace()
+static void DBloadRace()
 {
   uint64_t start_time = micros();
 
@@ -668,7 +675,6 @@ static void loadRace()
     return;
   }
   
-
   //String output = "";
   //serializeJsonPretty(raceJson, output);
   //ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
@@ -686,11 +692,13 @@ static void loadRace()
   double raceLapDist = raceJson["lapdistance"];
   uint32_t raceTagCount = raceJson["tags"];
   time_t raceStart = raceJson["start"];
+  bool raceOngoing = raceJson["raceOngoing"];
 
   theRace.setName(name);
   theRace.setDistance(raceDist);
   theRace.setLaps(raceLaps);
   theRace.setRaceStart(raceStart);
+  theRace.setRaceOngoing(raceOngoing);
 
   if ( std::abs(raceLapDist - theRace.getLapDistance()) > 1.0) {
     ESP_LOGE(TAG,"LoadRace ERROR lapdistance=%f != %f (calculated lap distance from dist:%d laps:%d) (NOK) Do nothing",raceLapDist,theRace.getLapDistance(),raceDist,raceLaps);
@@ -796,10 +804,15 @@ static void loadRace()
   uint64_t stop_time = micros();
   uint32_t tot_time = stop_time - start_time;
   ESP_LOGI(TAG,"Loaded race as %s time %d us", fileName.c_str(),tot_time );
-
+  if (theRace.isRaceOngoing()) {
+    // Load race was in started state
+    ESP_LOGI(TAG,"Loaded race was started when saved");
+    refreshTagGUI();
+    continueRace(theRace.getRaceStart()); //TODO move to signal
+  }
 }
 
-static void saveRace()
+static void DBsaveRace()
 {
   uint64_t start_time = micros();
 
@@ -814,6 +827,7 @@ static void saveRace()
   raceJson["lapdistance"] = theRace.getLapDistance();
   raceJson["tags"] = ITAG_COUNT;
   raceJson["start"] = theRace.getRaceStart();
+  raceJson["raceOngoing"] = theRace.isRaceOngoing();
 
   JsonArray tagArrayJson = raceJson.createNestedArray("tag");
   for(int i=0; i<ITAG_COUNT; i++)
@@ -876,8 +890,8 @@ void vTaskRaceDB( void *pvParameters )
   }
 
   ESP_LOGI(TAG,"Setup Race");
-  loadGlobalConfig();
-  loadRace();
+  DBloadGlobalConfig();
+  DBloadRace();
 
   // Send Race setup to GUI
   ESP_LOGI(TAG,"Send Race to GUI");
@@ -926,6 +940,10 @@ void vTaskRaceDB( void *pvParameters )
                 if(!iTags[j].participant.nextLap(newLapTime)) {
                   //TODO GUI popup ??
                   ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
+                }
+                if (theRace.isRaceOngoing()) {
+                  // Save every lap (is this to aggresive?)
+                  saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
                 }
               }
               else {
@@ -1048,6 +1066,9 @@ void vTaskRaceDB( void *pvParameters )
               ESP_LOGI(TAG," Removing %d/%d laps",i, lapDiff);
               iTags[handleDB].participant.prevLap();
             }
+            if (theRace.isRaceOngoing()) {
+              saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
+            }
           }
           else  if (lapDiff > 0) {
             // Positive add laps
@@ -1061,6 +1082,9 @@ void vTaskRaceDB( void *pvParameters )
               // TODO maybe something like      time_t newLapTime = mktime(&timeNow) - theRace.getBlockNewLapTime(); // remove theRace.getBlockNewLapTime() to make it possible to detect next lap directly
               iTags[handleDB].participant.nextLap(lapStart,0);
             }
+            if (theRace.isRaceOngoing()) {
+              saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
+            }
           }
           else {
             ESP_LOGW(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d = 0 -> Do nothing",
@@ -1073,7 +1097,7 @@ void vTaskRaceDB( void *pvParameters )
           ESP_LOGI(TAG,"Received: MSG_ITAG_LOAD_RACE MSG:0x%x", msg.LoadRace.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = false;
-          loadRace();
+          DBloadRace();
           break;
         }
         case MSG_ITAG_SAVE_RACE:
@@ -1081,7 +1105,7 @@ void vTaskRaceDB( void *pvParameters )
           ESP_LOGI(TAG,"Received: MSG_ITAG_SAVE_RACE MSG:0x%x", msg.SaveRace.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = false;
-          saveRace();
+          DBsaveRace();
           break;
         }
         case MSG_ITAG_TIMER_2000:
@@ -1097,7 +1121,7 @@ void vTaskRaceDB( void *pvParameters )
             if (autoSaveTainted && nowMinute % 5 == 0) {
               lastAutoSaveMinute = nowMinute;
               autoSaveTainted = false;
-              saveRace();
+              DBsaveRace();
             }
           }
           break;
