@@ -127,6 +127,8 @@ class guiRace {
     void receiveConfigRace(msg_RaceConfig *raceConfig);
     void sendConfigRace();
     void createGUITabConfig(lv_obj_t * parent);
+    time_t getRaceStart() { return raceStart;}
+    void setRaceStart(time_t inRaceStart) { raceStart = inRaceStart;}
     uint32_t getDistance() { return distance;}
     void setDistance(uint32_t inDistance) { distance = inDistance;}
     uint32_t getLaps() { return laps;}
@@ -135,6 +137,7 @@ class guiRace {
     bool isTestAreaDistance(lv_obj_t *ta) {return ta==textAreaConfigRaceDistance;}
     bool isTestAreaLaps(lv_obj_t *ta) {return ta==textAreaConfigRaceLaps;}
   private:
+    time_t raceStart;
     uint32_t distance;
     uint32_t laps;
     lv_obj_t * textAreaConfigRaceFileName = nullptr;
@@ -162,7 +165,7 @@ static void btnTime_event_cb(lv_event_t * e)
         {
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
-          startRaceCountdown();
+          startRaceCountdown();  //TODO should be signal
           lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
           gfxClearAllParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
@@ -1356,7 +1359,12 @@ void createGUI(void)
 void updateGUITime()
 {
   if (raceOngoing) {
-    lv_label_set_text(labelRaceTime, rtc.getTime("%H:%M:%S").c_str());
+    tm timeNow = rtc.getTimeStruct();
+    time_t now = mktime(&timeNow);
+    time_t currentRaceTime = difftime(now, guiRace.getRaceStart());
+    char buff[30];
+    strftime (buff, 30, "%H:%M:%S", localtime(&currentRaceTime));
+    lv_label_set_text(labelRaceTime, buff);
   }
   else if(raceStartIn) {
     lv_label_set_text_fmt(labelRaceTime, ">>  %d  <<", raceStartIn);
@@ -1435,6 +1443,7 @@ void loopHandlLVGL()
           {
             //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
             // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
+            guiRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
             break;
           }
           case MSG_RACE_CLEAR:

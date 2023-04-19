@@ -34,10 +34,6 @@ extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;
 extern TaskHandle_t xHandleGUI;
 
-// Broadcast...() - Don't touch data, just send messages, can be used from any context
-void BroadcastRaceClear();
-void BroadcastRaceStart(time_t raceStartTime);
-
 void startRaceCountdown();
 
 enum class HWPlatform : uint8_t

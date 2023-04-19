@@ -30,10 +30,13 @@
 #include "iTag.h"
 #include "bluetooth.h"
 #define TAG "Main"
+#include "RTClib.h"
 
 //ESP32Time rtc(3600);  // offset in seconds GMT+1
 ESP32Time rtc(0);  // use epoc as race start TODO use real RCT time from HW or NTP
+RTC_PCF8563 rtcHW;
 
+static unsigned long raceStartInEpoch = 0;
 uint32_t raceStartIn = 0;
 bool raceOngoing = false;
 
@@ -47,6 +50,50 @@ TaskHandle_t xHandleRaceDB = NULL;
 TaskHandle_t xHandleGUI = NULL;
 
 HWPlatform HW_Platform = HWPlatform::MakerFab_800x480;
+
+
+void initRTC()
+{
+  if (HW_Platform == HWPlatform::MakerFab_800x480 ) {
+
+    if (! rtcHW.begin()) {
+      Serial.println("Couldn't find RTC");
+      Serial.flush();
+      while (1) delay(10);
+    }
+
+    if (rtcHW.lostPower()) {
+      ESP_LOGW(TAG,"RTC is NOT initialized, let's set the time!");
+      // When time needs to be set on a new device, or after a power loss, the
+      // following line sets the RTC to the date & time this sketch was compiled
+      rtcHW.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      // This line sets the RTC with an explicit date & time, for example to set
+      // January 21, 2014 at 3am you would call:
+      // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+      //
+      // Note: allow 2 seconds after inserting battery or applying external power
+      // without battery before calling adjust(). This gives the PCF8523's
+      // crystal oscillator time to stabilize. If you call adjust() very quickly
+      // after the RTC is powered, lostPower() may still return true.
+    }
+    // When time needs to be re-set on a previously configured device, the
+    // following line sets the RTC to the date & time this sketch was compiled
+    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+
+    // When the RTC was stopped and stays connected to the battery, it has
+    // to be restarted by clearing the STOP bit. Let's do this to ensure
+    // the RTC is running.
+    rtcHW.start();
+    DateTime now = rtcHW.now();
+    rtc.setTime(now.unixtime());
+    
+  }
+  ESP_LOGE(TAG,"Time of boot: %s\n", rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+}
+
 
 void initMessageQueues()
 {
@@ -70,12 +117,10 @@ void initMessageQueues()
     ESP_LOGE(TAG,"Failed to create queueGFX = %p\n", queueGFX);
     // TODO Something more clever here?
   }
-
-
 }
 
 // Don't touch data, just send messages, can be used from any context
-void BroadcastRaceClear()
+static void BroadcastRaceClear()
 {
   msg_RaceDB msg;
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
@@ -89,7 +134,7 @@ void BroadcastRaceClear()
 }
 
 // Don't touch data, just send messages, can be used from any context
-void BroadcastRaceStart(time_t raceStartTime)
+static void BroadcastRaceStart(time_t raceStartTime)
 {
   msg_RaceDB msg;
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
@@ -107,19 +152,19 @@ void BroadcastRaceStart(time_t raceStartTime)
 
 void startRaceCountdown()
 {
-  rtc.setTime(0,0);  // TODO remove, for now EPOCH is used for the countdown as RACE_COUNTDOWN-EPOCH
-  //time_t raceStartTime = 0; // TODO remove, for now EPOCH is used for the countdown as RACE_COUNTDOWN-EPOCH
+  unsigned long now = rtc.getEpoch();
   raceStartIn = RACE_COUNTDOWN; //seconds
+  raceStartInEpoch = now + raceStartIn;
   raceOngoing = false;
 
   BroadcastRaceClear();
-  //BroadcastRaceStart(raceStartTime);
 }
 
-void startRace()
+static void startRace()
 {
-  rtc.setTime(0,0);  // TODO remove when we have RTC HW  and save reace start instead
-  time_t raceStartTime = 0; //TODO remove when we have RTC HW  and save reace start instead
+  raceStartInEpoch = rtc.getEpoch();
+  tm timeNow = rtc.getTimeStruct();
+  time_t raceStartTime = mktime(&timeNow);
   raceStartIn = 0;
   raceOngoing = true;
 
@@ -236,36 +281,43 @@ void setup()
 
   HW_Platform = autoDetectHW();
 
-  initMessageQueues(); // Must be called before starting all tasks as theu might use the messages queues
+  initMessageQueues(); // Must be called before starting all tasks as they might use the messages queues
+
   initLVGL();
   initBluetooth();
   initLittleFS();
+
+  initRTC(); // After initLVGL as it setups wire-I2C
+
   initRaceDB();
   ESP_LOGI(TAG, "Setup done switching to running loop");
 
 }
 
+
+
 void loop()
 {
+  unsigned long now = rtc.getEpoch();
+
   if(raceStartIn > 0) {
-    int newRaceStartIn = RACE_COUNTDOWN - rtc.getEpoch();
-    if(newRaceStartIn<=0) {
-      //Countdown 0
+    if(now>=raceStartInEpoch) {
+      //Countdown 0 -> Start Race!!!!
+      raceStartInEpoch = now;
       raceStartIn = 0;
       startRace();
     }
      else {
-      raceStartIn = newRaceStartIn;
+      // Update countdown
+      raceStartIn = raceStartInEpoch - now;
     }
   }
 
-  //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
-  delay(50);
 
   static unsigned long lastTimeUpdate = 0;
-  unsigned long now = rtc.getEpoch();
-  if ((lastTimeUpdate+5*60) <= now) { //one per 5 min
+  if ((lastTimeUpdate+5*60) <= now) { //once per 5 min
     lastTimeUpdate = now;
+    ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
     showHeapInfo(); //Monitor heap to see if memory leaks
     ESP_LOGI(TAG,"Main   used stack: %d",uxTaskGetStackHighWaterMark(nullptr));
     ESP_LOGI(TAG,"BT     used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleBT),TASK_BT_STACK);
@@ -276,4 +328,7 @@ void loop()
     ESP_LOGI(TAG,"RaceDB used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleRaceDB),TASK_RACEDB_STACK);
     ESP_LOGI(TAG,"GUI    used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleGUI),TASK_GUI_STACK);
   }
+
+  //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
+  delay(50);
 }

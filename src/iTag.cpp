@@ -128,7 +128,7 @@ class Race {
     void setName(std::string inName) {name=inName;}
     void setDistance(uint32_t inDist) {distance=inDist;}
     void setLaps(uint32_t inLaps) {laps=inLaps;};
-    void setRaceStart(uint32_t inStart) {raceStart=inStart;}
+    void setRaceStart(time_t inStart) {raceStart=inStart;}
 
   private:
     std::string fileName;
@@ -201,7 +201,7 @@ class participantData {
       return nextLap(newLapTime, 0);
     }
 
-    // Called when we clsoe to a new lap get stringer RSSI so we assume the new lap is "now" instead of a few seconds ago
+    // Called when we close to a new lap get stringer RSSI so we assume the new lap is "now" instead of a few seconds ago
     // This is used to get a closer lap time to the unit and try to avoid saving early BT detections.
     // Used together with bestRSSInearNewLap
     void updateLapTagIsCloser(time_t newLapTime)
@@ -503,13 +503,8 @@ static void raceCleariTags()
 
 static void raceStartiTags(time_t raceStartTime)
 {
-  longestNonSeen = 0;
-  for(int j=0; j<ITAG_COUNT; j++)
-  {
-    iTags[j].participant.setCurrentLap(raceStartTime,0);
-    iTags[j].participant.setUpdated();
-  }
-  refreshTagGUI();
+  theRace.setRaceStart(raceStartTime);
+  raceCleariTags(); //This will also refresh GUI
 }
 
 void refreshTagGUI()
@@ -521,16 +516,17 @@ void refreshTagGUI()
       // Check if "long time no see" and "disconnect"
       tm timeNow = rtc.getTimeStruct();
       time_t timeNowfromEpoc = mktime(&timeNow);
+      time_t timeFromRaceStart = difftime(timeNowfromEpoc, theRace.getRaceStart());      
       time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
-      uint32_t timeSinceLastSeen = difftime( timeNowfromEpoc, lastSeenSinceStart);
+      uint32_t timeSinceLastSeen = difftime( timeFromRaceStart, lastSeenSinceStart);
       iTags[j].participant.setTimeSinceLastSeen(timeSinceLastSeen);
-    if (longestNonSeen <  timeSinceLastSeen) {
-      longestNonSeen = timeSinceLastSeen;
-    }
 
+      if (longestNonSeen <  timeSinceLastSeen) {
+        longestNonSeen = timeSinceLastSeen;
+      }
 
       if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {
-        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen());
+        ESP_LOGI(TAG,"%s Disconnected Time: %s delta %d timeSinceLastSeen: %d", iTags[j].address.c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),iTags[j].participant.getTimeSinceLastSeen(),timeSinceLastSeen);
         iTags[j].connected = false;
       }
       iTags[j].participant.setUpdated();
@@ -910,7 +906,8 @@ void vTaskRaceDB( void *pvParameters )
               //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
               //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
 
-              time_t newLapTime = msg.iTag.time;
+              time_t iTagLapTime = msg.iTag.time;
+              time_t newLapTime = difftime(iTagLapTime, theRace.getRaceStart());
               iTags[j].setRSSI(msg.iTag.RSSI);
               if (msg.iTag.battery != INT8_MIN) {
                 iTags[j].battery = msg.iTag.battery;
@@ -922,8 +919,7 @@ void vTaskRaceDB( void *pvParameters )
               time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
               uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
 
-              if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {
-                
+              if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {                
                 // New Lap!
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
                 iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI); // Save RSSI
@@ -947,7 +943,7 @@ void vTaskRaceDB( void *pvParameters )
                     iTags[j].participant.updateLapTagIsCloser(newLapTime);
                   }
                 }
-                time_t newLastSeenSinceLapStart = difftime(newLapTime,iTags[j].participant.getCurrentLapStart());
+                time_t newLastSeenSinceLapStart = difftime(newLapTime, iTags[j].participant.getCurrentLapStart());
                 //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
               }
@@ -1060,8 +1056,10 @@ void vTaskRaceDB( void *pvParameters )
             {
               ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
               tm timeNow = rtc.getTimeStruct();
-              time_t newLapTime = mktime(&timeNow) - theRace.getBlockNewLapTime(); // remove theRace.getBlockNewLapTime() to make it possible to detect next lap directly
-              iTags[handleDB].participant.nextLap(newLapTime,0);
+              time_t lapStart = difftime(timeNow, theRace.getRaceStart());
+              // TODO Now this will add a "lap block" so this ONLY works when participant is in "LAP AREA"
+              // TODO maybe something like      time_t newLapTime = mktime(&timeNow) - theRace.getBlockNewLapTime(); // remove theRace.getBlockNewLapTime() to make it possible to detect next lap directly
+              iTags[handleDB].participant.nextLap(lapStart,0);
             }
           }
           else {
@@ -1110,7 +1108,6 @@ void vTaskRaceDB( void *pvParameters )
           ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = true;
-          theRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
           raceStartiTags(msg.Broadcast.RaceStart.startTime);
           break;
         }
