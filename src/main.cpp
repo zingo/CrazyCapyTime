@@ -195,7 +195,7 @@ void saveRace()
 
 void showHeapInfo()
 {
-  ESP_LOGI(TAG, "------------------------------------------ freeHeap: %9d bytes", xPortGetFreeHeapSize());
+  ESP_LOGI(TAG, "       freeHeap:      %9d bytes", xPortGetFreeHeapSize());
   ESP_LOGI(TAG, "MALLOC_CAP_EXEC:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_EXEC));
   //ESP_LOGI(TAG, "MALLOC_CAP_32BIT:     %9d bytes",heap_caps_get_free_size(MALLOC_CAP_32BIT)); same as MALLOC_CAP_DEFAULT
   //ESP_LOGI(TAG, "MALLOC_CAP_8BIT:      %9d bytes",heap_caps_get_free_size(MALLOC_CAP_8BIT));  same as MALLOC_CAP_DEFAULT
@@ -338,7 +338,7 @@ void loop()
   static unsigned long lastTimeUpdate = 0;
   if ((lastTimeUpdate+5*60) <= now) { //once per 5 min
     lastTimeUpdate = now;
-    ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
+    ESP_LOGI(TAG,"------------------------ Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
     showHeapInfo(); //Monitor heap to see if memory leaks
     ESP_LOGI(TAG,"Main   used stack: %d",uxTaskGetStackHighWaterMark(nullptr));
     ESP_LOGI(TAG,"BT     used stack: %d / %d",uxTaskGetStackHighWaterMark(xHandleBT),TASK_BT_STACK);

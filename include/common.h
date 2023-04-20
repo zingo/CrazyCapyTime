@@ -26,8 +26,8 @@ extern bool raceOngoing;
 #define TASK_GUI_PRIO 5
 
 // Stack size in words, not bytes.
-#define TASK_BT_STACK (4*1024)
-#define TASK_RACEDB_STACK (8*1024)
+#define TASK_BT_STACK (6*1024)
+#define TASK_RACEDB_STACK (32*1024)
 #define TASK_GUI_STACK (32*1024)
 
 extern TaskHandle_t xHandleBT;
@@ -36,9 +36,13 @@ extern TaskHandle_t xHandleGUI;
 
 void saveRace(); // Send signal to save race
 
+void showHeapInfo(void);
+
 // TODO move below to signals to remove access to global variables
 void startRaceCountdown();
 void continueRace(time_t raceStartTime);
+
+
 
 enum class HWPlatform : uint8_t
 {

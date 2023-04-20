@@ -124,9 +124,24 @@ class guiParticipant {
 
 class guiRace {
   public:
+    guiRace() : dataValid(false) , raceStart(0), distance(0), laps(1),
+                textAreaConfigRaceFileName(nullptr),
+                textAreaConfigRaceName(nullptr),
+                textAreaConfigRaceTimebased(nullptr),
+                textAreaConfigRaceMaxTime(nullptr),
+                textAreaConfigRaceDistance(nullptr),
+                textAreaConfigRaceLaps(nullptr),
+                textAreaConfigRaceLapsDistances(nullptr),
+                textAreaConfigRaceBlockNewLapTime(nullptr),
+                textAreaConfigRaceUpdateCloserTime(nullptr),
+                textAreaConfigRaceRaceStartIn(nullptr),
+                tabGraph(nullptr)
+                {}
+
     void receiveConfigRace(msg_RaceConfig *raceConfig);
     void sendConfigRace();
     void createGUITabConfig(lv_obj_t * parent);
+    void updateGUITabRaceGraph();
     time_t getRaceStart() { return raceStart;}
     void setRaceStart(time_t inRaceStart) { raceStart = inRaceStart;}
     uint32_t getDistance() { return distance;}
@@ -138,8 +153,11 @@ class guiRace {
     bool isTextAreaLaps(lv_obj_t *ta) {return ta==textAreaConfigRaceLaps;}
     bool isCheckBoxTimeBased(lv_obj_t *cb) {return cb==textAreaConfigRaceTimebased;}
     bool isTimeBasedRace() {return lv_obj_get_state(textAreaConfigRaceTimebased) & LV_STATE_CHECKED;}
+    time_t getMaxTime();
+    bool isDataValid() {return dataValid;}
+    void setTabGraph(lv_obj_t *inTabGraph) {tabGraph=inTabGraph; createGUITabRaceGraph();}
   private:
-    bool timeBasedRace;
+    bool dataValid;
     time_t raceStart;
     uint32_t distance;
     uint32_t laps;
@@ -153,6 +171,9 @@ class guiRace {
     lv_obj_t * textAreaConfigRaceBlockNewLapTime = nullptr;
     lv_obj_t * textAreaConfigRaceUpdateCloserTime = nullptr;
     lv_obj_t * textAreaConfigRaceRaceStartIn = nullptr;
+    lv_obj_t * tabGraph = nullptr;
+
+    void createGUITabRaceGraph();
 };
 
 static guiRace guiRace;
@@ -861,6 +882,9 @@ static void createGUITabParticipant(lv_obj_t * parent)
 
 void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
 {
+  ESP_LOGI(TAG,"receiveConfigRace()");
+
+
   //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
   //      raceConfig->header.msgType, raceConfig->fileName, raceConfig->name,raceConfig->distance, raceConfig->laps, 
   //      raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
@@ -905,6 +929,14 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   setBlockNewLapTime(blockNewLapTime);
   lv_textarea_set_text(textAreaConfigRaceUpdateCloserTime,updateCloserTime.c_str());
   lv_textarea_set_text(textAreaConfigRaceRaceStartIn,raceStartInTime.c_str());
+  dataValid = true;
+  updateGUITabRaceGraph(); // Update graph to new race dimensions
+}
+
+time_t guiRace::getMaxTime()
+{
+  time_t maxTime = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceMaxTime)));
+  return maxTime;
 }
 
 void guiRace::sendConfigRace()
@@ -1264,52 +1296,70 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
   textAreaConfigRaceBlockNewLapTime  = addConfigNumber(configGrid, row++, "Block new lap until:", 0, "s", true);
   textAreaConfigRaceUpdateCloserTime = addConfigNumber(configGrid, row++, "Participand closing in time:", 0, "s", true);
   textAreaConfigRaceRaceStartIn      = addConfigNumber(configGrid, row++, "Race start countdown:", 0, "s", true);
+
+  ESP_LOGI(TAG,"createGUITabConfig() Done");
 }
 
-static void createGUITabRaceExtra(lv_obj_t * parent)
+void guiRace::createGUITabRaceGraph()
 {
+  ESP_LOGI(TAG,"createGUITabRaceGraph()");
+
+  lv_obj_t * parent = tabGraph;
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_column(parent,5,0);
   lv_obj_set_style_pad_row(parent,5,0);
   lv_obj_set_style_pad_all(parent, 5,0);
 
+  ESP_LOGI(TAG,"createGUITabRaceGraph() Create graph!");
   chartLaps = lv_chart_create(parent);
-  lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  lv_obj_set_size(chartLaps, LV_PCT(100), 300);
+  lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_set_size(chartLaps, LV_PCT(90), LV_PCT(85));
   lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
-  
-  const uint32_t ydiv_num = 8;
-  const uint32_t xdiv_num = 9;
-  lv_chart_set_div_line_count(chartLaps, 9, 10);
-//  lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
-//  lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
 
-  lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, 60*60*9);
-  lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, 8);
-
-  lv_chart_set_point_count(chartLaps, (DRAW_MAX_LAPS_IN_CHART*2*ITAG_COUNT));
-
-  lv_obj_t * btnLoad = lv_btn_create(parent); 
-  //lv_obj_align_to(btnLoad, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-  lv_obj_add_event_cb(btnLoad, btnLoad_event_cb, LV_EVENT_ALL, NULL);
-
-  lv_obj_t *labelLoad = lv_label_create(btnLoad);          /*Add a label to the button*/
-  lv_label_set_text(labelLoad, "Load");                     /*Set the labels text*/
-  lv_obj_center(labelLoad);
-  lv_obj_add_style(labelLoad, &styleTime, 0);
-
-  lv_obj_t * btnSave = lv_btn_create(parent); 
-  //lv_obj_align_to(btnSave, labelLoad, LV_ALIGN_TOP_RIGHT, 0, 0);
-  //lv_obj_set_pos(btnSave, 10, 10);                            /*Set its position*/
-  //lv_obj_set_size(btnSave, 120, 50);                          /*Set its size*/
-  lv_obj_add_event_cb(btnSave, btnSave_event_cb, LV_EVENT_ALL, NULL);
-
-  lv_obj_t *labelSave = lv_label_create(btnSave);          /*Add a label to the button*/
-  lv_label_set_text(labelSave, "Save");                     /*Set the labels text*/
-  lv_obj_center(labelSave);
-  lv_obj_add_style(labelSave, &styleTime, 0);
-
+  if(isDataValid()) {
+    updateGUITabRaceGraph();
+  }
 }
+
+void guiRace::updateGUITabRaceGraph()
+{
+  ESP_LOGI(TAG,"createGUITabRaceGraph()");
+  if(!isDataValid()) {
+    ESP_LOGE(TAG,"createGUITabRaceGraph() called before all data is valid, do nothing");
+    return;
+  }
+
+  bool timeBasedRace = isTimeBasedRace();
+  time_t maxTime = getMaxTime();
+  uint32_t laps = getLaps();
+
+  if (!timeBasedRace) {
+    maxTime +=1; // add some space for slow runners to still be visiable
+    laps += 2; // add some laps if someone get feeling for one extra
+  }
+  else {
+    laps=30; //TODO test 999
+  }
+
+  if (!timeBasedRace) {
+    lv_chart_set_div_line_count(chartLaps, laps+1, maxTime+1);  //revered order Y-Horizontal first
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, maxTime+1, 4, true, 50);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 5, 3, laps+1, 1, true, 50);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, laps);
+  }
+  else {
+    lv_chart_set_div_line_count(chartLaps, maxTime+1, maxTime+1); //revered order Y-Horizontal first
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, (maxTime/2)+1, 2, true, 70);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 170);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, maxTime);
+  }
+
+  lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
+}
+
+
 
 static void createGUITabRSSI(lv_obj_t * parent)
 {
@@ -1441,13 +1491,13 @@ void createGUI(void)
 
   tabRace = lv_tabview_add_tab(tabView, "Race"); 
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
-  lv_obj_t * tab3 = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
+  lv_obj_t * tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
   lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
   lv_obj_t * tab5 = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
-  createGUITabRaceExtra(tab3);
+  guiRace.setTabGraph(tabGraph); // Will be populated later when we get the race config msg
   createGUITabRSSI(tab4);
   guiRace.createGUITabConfig(tab5);
 }
@@ -1638,13 +1688,19 @@ void vTaskLVGL( void *pvParameters )
   screenWidth = gfx->width();
   screenHeight = gfx->height();
 //#ifdef ESP32
-  disp_draw_buf = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * screenWidth * screenHeight / 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint32_t buffersize = sizeof(lv_color_t) * screenWidth * screenHeight / 4;
+  ESP_LOGE(TAG, "Alloc gfx framebuffer: %d bytes",buffersize);
+  //static uint8_t framebuf[192000];
+  //disp_draw_buf = (lv_color_t *) &framebuf;
+  //disp_draw_buf = (lv_color_t *)heap_caps_malloc(buffersize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  disp_draw_buf = (lv_color_t *)heap_caps_malloc(buffersize, MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT);
 //#else
-//  disp_draw_buf = (lv_color_t *)malloc(sizeof(lv_color_t) * screenWidth * screenHeight / 4);
+//  disp_draw_buf = (lv_color_t *)malloc(buffersize);
 //#endif
   if (!disp_draw_buf)
   {
-    ESP_LOGE(TAG, "LVGL disp_draw_buf allocate failed!");
+    ESP_LOGE(TAG, "LVGL disp_draw_buf allocate failed! size:%d",buffersize);
+    showHeapInfo();
   }
   else
   {
@@ -1673,7 +1729,7 @@ void vTaskLVGL( void *pvParameters )
 
     for(;;)
     {
-      ESP_LOGE(TAG,"----- loopHandlLVGL() -----");
+      ESP_LOGI(TAG,"----- loopHandlLVGL() -----");
       loopHandlLVGL();
       delay(5);
     }
