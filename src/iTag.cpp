@@ -61,6 +61,8 @@ class Race {
       }
       fileName = std::string(raceConfig->fileName);
       name = std::string(raceConfig->name);
+      timeBasedRace = raceConfig->timeBasedRace;
+      maxTime = raceConfig->maxTime;
       distance = raceConfig->distance;
       laps = raceConfig->laps;
       blockNewLapTime = raceConfig->blockNewLapTime;
@@ -87,6 +89,8 @@ class Race {
         len = name.copy(msg.Broadcast.RaceConfig.name, PARTICIPANT_NAME_LENGTH);
         msg.Broadcast.RaceConfig.name[len] = '\0';
 
+        msg.Broadcast.RaceConfig.timeBasedRace = timeBasedRace;
+        msg.Broadcast.RaceConfig.maxTime = maxTime;
         msg.Broadcast.RaceConfig.distance = distance;
         msg.Broadcast.RaceConfig.laps = laps;
         msg.Broadcast.RaceConfig.blockNewLapTime = blockNewLapTime;
@@ -106,6 +110,8 @@ class Race {
 
     std::string getFileName() {return fileName;}
     std::string getName() {return name;}
+    bool isTimeBasedRace() {return timeBasedRace;}
+    time_t getMaxTime() {return maxTime;}
     uint32_t getDistance() {return distance;}
     uint32_t getLaps()
     {
@@ -129,14 +135,18 @@ class Race {
 
     void setFileName(std::string inName) {fileName=inName;}
     void setName(std::string inName) {name=inName;}
+    void setTimeBasedRace(bool inTimeBasedRace) {timeBasedRace=inTimeBasedRace;}
+    void setMaxTime(time_t inMaxTime) {maxTime=inMaxTime;}
     void setDistance(uint32_t inDist) {distance=inDist;}
-    void setLaps(uint32_t inLaps) {laps=inLaps;};
+    void setLaps(uint32_t inLaps) {laps=inLaps;}
     void setRaceStart(time_t inStart) {raceStart=inStart;}
     void setRaceOngoing(bool race) {raceOngoing=race;}
 
   private:
     std::string fileName;
     std::string name;
+    bool timeBasedRace;
+    time_t maxTime;
     uint32_t distance;
     uint32_t laps;
     time_t blockNewLapTime;  // We need to NOT detect the tag for this amout of time before adding a new lap if we the the tag.
@@ -687,6 +697,8 @@ static void DBloadRace()
 
 
   std::string name = raceJson["racename"];
+  bool raceTimeBased = raceJson["raceTimeBased"];
+  time_t raceMaxTime = raceJson["raceMaxTime"];
   uint32_t raceDist = raceJson["distance"];
   uint32_t raceLaps = raceJson["laps"];
   double raceLapDist = raceJson["lapdistance"];
@@ -695,6 +707,8 @@ static void DBloadRace()
   bool raceOngoing = raceJson["raceOngoing"];
 
   theRace.setName(name);
+  theRace.setTimeBasedRace(raceTimeBased);
+  theRace.setMaxTime(raceMaxTime);
   theRace.setDistance(raceDist);
   theRace.setLaps(raceLaps);
   theRace.setRaceStart(raceStart);
@@ -822,6 +836,8 @@ static void DBsaveRace()
   raceJson["filetype"] = "racedata";
   raceJson["fileformatversion"] = "0.3";
   raceJson["racename"] = theRace.getName();
+  raceJson["raceTimeBased"] = theRace.isTimeBasedRace();
+  raceJson["raceMaxTime"] = theRace.getMaxTime();
   raceJson["distance"] = theRace.getDistance();
   raceJson["laps"] = theRace.getLaps();
   raceJson["lapdistance"] = theRace.getLapDistance();

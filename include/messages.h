@@ -28,11 +28,13 @@ struct msg_RaceConfig
   msgHeader header; //Must be first in all msg, used to interpertate and select rest of struct
   char fileName[RACE_NAME_LENGTH+1]; // add one for nulltermination
   char name[RACE_NAME_LENGTH+1]; // add one for nulltermination
-  uint32_t distance;
-  uint32_t laps;
+  bool timeBasedRace;
+  time_t maxTime;  // in hours
+  uint32_t distance; //timeBasedRace=false: race distance, timeBasedRace=true: This is lap distance
+  uint32_t laps; //timeBasedRace=false: laps in race -> calulate lap distance, timeBasedRace=true: NA
   time_t blockNewLapTime;
   time_t updateCloserTime;
-  time_t raceStartInTime; // Race Start Countdown time
+  time_t raceStartInTime; // Race Start Countdown time in seconds
 };
 
 union msg_BroadcastMessages

@@ -134,14 +134,19 @@ class guiRace {
     uint32_t getLaps() { return laps;}
     void setLaps(uint32_t inLaps) { laps = inLaps;}
     void setBlockNewLapTime(time_t newTime) {lv_textarea_set_text(textAreaConfigRaceBlockNewLapTime,std::to_string(newTime).c_str());}
-    bool isTestAreaDistance(lv_obj_t *ta) {return ta==textAreaConfigRaceDistance;}
-    bool isTestAreaLaps(lv_obj_t *ta) {return ta==textAreaConfigRaceLaps;}
+    bool isTextAreaDistance(lv_obj_t *ta) {return ta==textAreaConfigRaceDistance;}
+    bool isTextAreaLaps(lv_obj_t *ta) {return ta==textAreaConfigRaceLaps;}
+    bool isCheckBoxTimeBased(lv_obj_t *cb) {return cb==textAreaConfigRaceTimebased;}
+    bool isTimeBasedRace() {return lv_obj_get_state(textAreaConfigRaceTimebased) & LV_STATE_CHECKED;}
   private:
+    bool timeBasedRace;
     time_t raceStart;
     uint32_t distance;
     uint32_t laps;
     lv_obj_t * textAreaConfigRaceFileName = nullptr;
     lv_obj_t * textAreaConfigRaceName = nullptr;
+    lv_obj_t * textAreaConfigRaceTimebased = nullptr;
+    lv_obj_t * textAreaConfigRaceMaxTime = nullptr;
     lv_obj_t * textAreaConfigRaceDistance = nullptr;
     lv_obj_t * textAreaConfigRaceLaps = nullptr;
     lv_obj_t * textAreaConfigRaceLapsDistances = nullptr;
@@ -861,6 +866,8 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   //      raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
   std::string fileName = std::string(raceConfig->fileName);
   std::string name = std::string(raceConfig->name);
+  bool timeBasedRace = raceConfig->timeBasedRace;
+  std::string maxTime = std::to_string(raceConfig->maxTime);
   std::string distance = std::to_string(raceConfig->distance);
   laps = raceConfig->laps;
   time_t blockNewLapTime = raceConfig->blockNewLapTime;
@@ -868,15 +875,32 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   std::string raceStartInTime = std::to_string(raceConfig->raceStartInTime);
 
   if (laps == 0) {
-    // Laps cant be 0 assume 1
+    // Laps can't be 0 assume 1
     laps = 1;
   }
-  uint32_t lapsDistances = raceConfig->distance / laps;
-
+  uint32_t lapsDistances;
+  if (timeBasedRace) {
+    lapsDistances = raceConfig->distance;
+  }
+  else {
+    lapsDistances = raceConfig->distance / laps;
+  }
   lv_textarea_set_text(textAreaConfigRaceFileName,fileName.c_str());
   lv_textarea_set_text(textAreaConfigRaceName,name.c_str());
+
+  if (timeBasedRace) {
+    lv_obj_add_state(textAreaConfigRaceTimebased, LV_STATE_CHECKED);
+    lv_textarea_set_text(textAreaConfigRaceLaps,std::to_string(laps).c_str());
+    lv_obj_add_state(textAreaConfigRaceLaps, LV_STATE_DISABLED);
+  }
+  else {
+    lv_obj_clear_state(textAreaConfigRaceTimebased, LV_STATE_CHECKED);
+    lv_textarea_set_text(textAreaConfigRaceLaps,std::to_string(laps).c_str());
+    lv_obj_clear_state(textAreaConfigRaceLaps, LV_STATE_DISABLED);
+  }
+
+  lv_textarea_set_text(textAreaConfigRaceMaxTime,maxTime.c_str());
   lv_textarea_set_text(textAreaConfigRaceDistance,distance.c_str());
-  lv_textarea_set_text(textAreaConfigRaceLaps,std::to_string(laps).c_str());
   lv_label_set_text(textAreaConfigRaceLapsDistances,std::to_string(lapsDistances).c_str());
   setBlockNewLapTime(blockNewLapTime);
   lv_textarea_set_text(textAreaConfigRaceUpdateCloserTime,updateCloserTime.c_str());
@@ -887,6 +911,8 @@ void guiRace::sendConfigRace()
 {
   std::string configRaceFileName    = std::string(lv_textarea_get_text(textAreaConfigRaceFileName));
   std::string configRaceName        = std::string(lv_textarea_get_text(textAreaConfigRaceName));
+  bool timeBasedRace = lv_obj_get_state(textAreaConfigRaceTimebased) & LV_STATE_CHECKED;
+  time_t maxTime = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceMaxTime)));
   uint32_t configRaceDistance       = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
   //laps                              = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceLaps)));
   time_t configRaceBlockNewLapTime  = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceBlockNewLapTime)));
@@ -908,7 +934,8 @@ void guiRace::sendConfigRace()
   msg.Broadcast.RaceConfig.fileName[len] = '\0';
   len = configRaceName.copy(msg.Broadcast.RaceConfig.name, PARTICIPANT_NAME_LENGTH);
   msg.Broadcast.RaceConfig.name[len] = '\0';
-
+  msg.Broadcast.RaceConfig.timeBasedRace = timeBasedRace;
+  msg.Broadcast.RaceConfig.maxTime = maxTime;
   msg.Broadcast.RaceConfig.distance = configRaceDistance;
   msg.Broadcast.RaceConfig.laps = laps;
   msg.Broadcast.RaceConfig.blockNewLapTime = configRaceBlockNewLapTime;
@@ -998,7 +1025,7 @@ static void taConfigNum_event_cb(lv_event_t * e)
   if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED || code == LV_EVENT_CANCEL)
   {
     // Update Laps
-    if (guiRace.isTestAreaLaps(ta)) {
+    if (guiRace.isTextAreaLaps(ta)) {
         //uint32_t raceDistance = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
         uint32_t laps = std::stoi( std::string(lv_textarea_get_text(ta)));
         if (laps == 0) {
@@ -1008,20 +1035,22 @@ static void taConfigNum_event_cb(lv_event_t * e)
         guiRace.setLaps(laps);
     }
     // Update Distance
-    if (guiRace.isTestAreaDistance(ta)) {
+    if (guiRace.isTextAreaDistance(ta)) {
         //uint32_t raceDistance = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceDistance)));
         uint32_t dist = std::stoi( std::string(lv_textarea_get_text(ta)));
         guiRace.setDistance(dist);
     }
     // Check if we should update block time
-    if (guiRace.isTestAreaLaps(ta) || guiRace.isTestAreaDistance(ta)) {
-      uint32_t laps = guiRace.getLaps();
-      if (laps == 0) {
-          laps = 1;
+    if (guiRace.isTextAreaLaps(ta) || guiRace.isTextAreaDistance(ta)) {
+      uint32_t laps = 1;
+      if (!guiRace.isTimeBasedRace()) {
+        laps = guiRace.getLaps();
+        if (laps == 0) {
+            laps = 1;
+        }
       }
-      time_t  blockNewLapTime;
       // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
-      blockNewLapTime = ((170*guiRace.getDistance()/laps)/1000);
+      time_t blockNewLapTime = ((170*guiRace.getDistance()/laps)/1000);
       guiRace.setBlockNewLapTime(blockNewLapTime);
     }
 
@@ -1029,6 +1058,38 @@ static void taConfigNum_event_cb(lv_event_t * e)
   }
 }
 
+static void taConfigBool_event_cb(lv_event_t * e)
+{
+  lv_event_code_t code = lv_event_get_code(e);
+  lv_obj_t *cb = lv_event_get_target(e);
+  //uint32_t handleGFX = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
+  //if(code == LV_EVENT_VALUE_CHANGED) {
+  //    const char * txt = lv_checkbox_get_text(obj);
+  //    const char * state = lv_obj_get_state(obj) & LV_STATE_CHECKED ? "Checked" : "Unchecked";
+  //    LV_LOG_USER("%s: %s", txt, state);
+  //}
+
+  // Config updated -> send update signal to RaceDB, and update signal will be send back
+  // that will resync name in all tabs.
+  if(code == LV_EVENT_VALUE_CHANGED)
+  {
+    // Check if we should update block time
+    if (guiRace.isCheckBoxTimeBased(cb)) {
+      uint32_t laps = 1;
+      if (!guiRace.isTimeBasedRace()) {
+        laps = guiRace.getLaps();
+        if (laps == 0) {
+            laps = 1;
+        }
+      }
+      // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
+      time_t blockNewLapTime = ((170*guiRace.getDistance()/laps)/1000);
+      guiRace.setBlockNewLapTime(blockNewLapTime);
+    }
+
+    guiRace.sendConfigRace();
+  }
+}
 
 static lv_obj_t * addConfigText(lv_obj_t * parent, uint8_t row, char *labelText, char* content, char* extra, bool editable)
 {
@@ -1098,7 +1159,44 @@ static lv_obj_t * addConfigNumber(lv_obj_t * parent, uint8_t row, char *labelTex
   lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_add_style(label, &styleTagSmallText, 0);
   lv_label_set_text(label, extra);
-  lv_obj_center(label);
+  lv_obj_set_align(label,LV_ALIGN_LEFT_MID);
+  //lv_obj_center(label);
+
+  return lvobj;
+}
+
+static lv_obj_t * addConfigBool(lv_obj_t * parent, uint8_t row, char *labelText, bool content, char* extra, bool editable)
+{
+  uint8_t col = 0;
+
+  col++; //Nothing here "labelText" is placed in checkbox
+
+  lv_obj_t * lvobj;
+  lvobj = lv_checkbox_create(parent);
+  lv_checkbox_set_text(lvobj, labelText);
+  if (content) {
+    lv_obj_add_state(lvobj, LV_STATE_CHECKED);
+  }
+  else {
+    lv_obj_clear_state(lvobj, LV_STATE_CHECKED);
+  }
+  if (editable) {
+    lv_obj_clear_state(lvobj, LV_STATE_DISABLED);
+    lv_obj_add_event_cb(lvobj, taConfigBool_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(0));
+  }
+  else {
+    lv_obj_add_state(lvobj, LV_STATE_DISABLED);
+  }
+  lv_obj_add_style(lvobj, &styleTagSmallText, 0);
+  lv_obj_set_grid_cell(lvobj, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+
+  lv_obj_t *label = lv_label_create(parent);
+  lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, col++, 1, LV_GRID_ALIGN_CENTER, row, 1);
+  lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_add_style(label, &styleTagSmallText, 0);
+  lv_label_set_text(label, extra);
+  lv_obj_set_align(label,LV_ALIGN_LEFT_MID);
+  //lv_obj_center(label);
 
   return lvobj;
 }
@@ -1109,7 +1207,6 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
   lv_obj_set_style_pad_column(parent,2,0);
   lv_obj_set_style_pad_row(parent,2,0);
   lv_obj_set_style_pad_all(parent, 2,0);
-
 
   // ---- Load & Save buttons
 
@@ -1144,6 +1241,8 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
                                  LV_GRID_CONTENT,
                                  LV_GRID_CONTENT,
                                  LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
+                                 LV_GRID_CONTENT,
                                  LV_GRID_TEMPLATE_LAST};
 
   lv_obj_t * configGrid = lv_obj_create(parent);
@@ -1157,6 +1256,8 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
   uint32_t row = 0;
   textAreaConfigRaceFileName         = addConfigText(  configGrid, row++, "File name:","FileName", "", true);          //TODO add Load/save buttons here instead?
   textAreaConfigRaceName             = addConfigText(  configGrid, row++, "Race name:","Name", "", true);
+  textAreaConfigRaceTimebased        = addConfigBool(  configGrid, row++, "Timebased race",false, "", true);
+  textAreaConfigRaceMaxTime          = addConfigNumber(configGrid, row++, "Max time:",6, "hours", true);
   textAreaConfigRaceDistance         = addConfigNumber(configGrid, row++, "Distance:",0, "meter", true);
   textAreaConfigRaceLaps             = addConfigNumber(configGrid, row++, "Laps:",0, "", true);
   textAreaConfigRaceLapsDistances    = addConfigNumber(configGrid, row++, "Laps distance:", 0, "meter", false);  // Not editable will be a label instead of textarea
