@@ -249,7 +249,7 @@ static void vTaskBTConnect( void *pvParameters )
           doBTScan = true;
           NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
 
-          // Send responce/activate iTag
+          // Send response/activate iTag
           msg_RaceDB msgReponse;
           msgReponse.iTag.header.msgType = MSG_ITAG_CONFIGURED;
           msgReponse.iTag.address = msg_iTag.address;

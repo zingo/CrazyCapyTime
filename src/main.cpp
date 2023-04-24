@@ -124,12 +124,12 @@ static void BroadcastRaceClear()
 {
   msg_RaceDB msg;
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
-  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msg.Broadcast.RaceStart.header.msgType);
+  ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msg.Broadcast.RaceStart.header.msgType);
   xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 
   msg_GFX msgGFX;
   msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
-  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msgGFX.Broadcast.RaceStart.header.msgType);
+  ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msgGFX.Broadcast.RaceStart.header.msgType);
   xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
@@ -139,20 +139,21 @@ static void BroadcastRaceStart(time_t raceStartTime)
   msg_RaceDB msg;
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
   msg.Broadcast.RaceStart.startTime = raceStartTime;
-  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+  ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
   xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 
 
   msg_GFX msgGFX;
   msgGFX.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
   msgGFX.Broadcast.RaceStart.startTime = raceStartTime;
-  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
+  ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msgGFX.Broadcast.RaceStart.header.msgType,msgGFX.Broadcast.RaceStart.startTime);
   xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
 void startRaceCountdown()
 {
   unsigned long now = rtc.getEpoch();
+  ESP_LOGI(TAG,"startRaceCountdown()");
   raceStartIn = RACE_COUNTDOWN; //seconds
   raceStartInEpoch = now + raceStartIn;
   raceOngoing = false;
@@ -351,5 +352,5 @@ void loop()
   }
 
   //ESP_LOGI(TAG,"Time: %s\n",rtc.getTime("%Y-%m-%d %H:%M:%S").c_str()); // format options see https://cplusplus.com/reference/ctime/strftime/
-  delay(50);
+  delay(100);
 }

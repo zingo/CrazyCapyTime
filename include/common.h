@@ -27,8 +27,8 @@ extern bool raceOngoing;
 
 // Stack size in words, not bytes.
 #define TASK_BT_STACK (6*1024)
-#define TASK_RACEDB_STACK (32*1024)
-#define TASK_GUI_STACK (32*1024)
+#define TASK_RACEDB_STACK (70*1024)
+#define TASK_GUI_STACK (70*1024)
 
 extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;

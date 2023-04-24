@@ -81,7 +81,9 @@ static lv_style_t style_iTag0;  //iTag circle
 static lv_style_t style_iTag1;  //iTag rubber circle
 
 static lv_obj_t *tabView = nullptr;       //Screen
-static lv_obj_t *labelRaceTime = nullptr;
+static lv_obj_t *globalLabelRaceName = nullptr;
+static lv_obj_t *globalLabelRaceTag = nullptr;
+static lv_obj_t *globalLabelRaceTime = nullptr;
 
 static lv_obj_t *tabRace = nullptr;
 static lv_obj_t *tabParticipants = nullptr;
@@ -174,6 +176,7 @@ class guiRace {
     lv_obj_t * tabGraph = nullptr;
 
     void createGUITabRaceGraph();
+    void createGUITabRSSI(lv_obj_t * parent);
 };
 
 static guiRace guiRace;
@@ -361,6 +364,40 @@ static void btnTagSub_event_cb(lv_event_t * e)
       }
     }
 }
+
+#ifdef TESTCODE
+
+void startTestEndToEnd(std::string testname); //TODO move to header
+void stopTestEndToEnd(); //TODO move to header
+
+static const char * btnTest_map[] = {"Test24HFast", "Test24HLive", "\n",
+                                     "StopTest", "StopTest", "StopTest", ""
+                                };
+
+static void btnTest_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * obj = lv_event_get_target(e);
+    if(code == LV_EVENT_VALUE_CHANGED) {
+        uint32_t id = lv_btnmatrix_get_selected_btn(obj);
+        const char * txt = lv_btnmatrix_get_btn_text(obj, id);
+
+        ESP_LOGI(TAG,"TEST: %s was pressed\n", txt);
+        std::string stopTesting("StopTesting");
+        std::string selected = txt;
+
+        if (selected != stopTesting) {
+          startTestEndToEnd(selected);
+        }
+        else {
+          stopTestEndToEnd();
+        }
+
+
+    }
+}
+#endif
+
 
 
 static void gfxRemoveUserFromRace(uint32_t handleGFX)
@@ -657,29 +694,110 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   return true;
 }
 
+void guiRace::createGUITabRaceGraph()
+{
+  ESP_LOGI(TAG,"createGUITabRaceGraph()");
+
+  lv_obj_t * parent = tabGraph;
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(parent,5,0);
+  lv_obj_set_style_pad_row(parent,5,0);
+  lv_obj_set_style_pad_all(parent, 5,0);
+
+  ESP_LOGI(TAG,"createGUITabRaceGraph() Create graph!");
+  chartLaps = lv_chart_create(parent);
+  //lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_center(chartLaps);
+  lv_obj_set_size(chartLaps, LV_PCT(90), LV_PCT(85));
+  lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
+
+  if(isDataValid()) {
+    updateGUITabRaceGraph();
+  }
+}
+
+void guiRace::updateGUITabRaceGraph()
+{
+  ESP_LOGI(TAG,"createGUITabRaceGraph()");
+  if(!isDataValid()) {
+    ESP_LOGE(TAG,"createGUITabRaceGraph() called before all data is valid, do nothing");
+    return;
+  }
+
+  bool timeBasedRace = isTimeBasedRace();
+  time_t maxTime = getMaxTime();
+  uint32_t laps = getLaps();
+  uint32_t raceDist = getDistance();
+
+  if (!timeBasedRace) {
+    maxTime +=1; // add some space for slow runners to still be visiable
+    raceDist += (raceDist/laps)*2; // add some laps if someone get feeling for one extra
+    laps += 2; // add some laps if someone get feeling for one extra
+  }
+  else {
+    laps=300; //TODO use 999
+  }
+
+  if (!timeBasedRace) {
+    lv_chart_set_div_line_count(chartLaps, laps+1, maxTime+1);  //reversed order Y-Horizontal first
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, maxTime+1, 4, true, 50);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 5, 3, laps+1, 1, true, 50);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime*60*60);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, raceDist);
+    //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, raceDist);
+    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d]",maxTime*60*60,raceDist);
+  }
+  else {
+    lv_chart_set_div_line_count(chartLaps, maxTime+1, maxTime+1); //reversed order Y-Horizontal first
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_X, 20, 10, (maxTime/2)+1, 2, true, 70);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 170);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime*60*60);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, maxTime*10*1000);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, maxTime);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, maxTime);
+    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d]",maxTime*60*60,maxTime*10*1000);
+  }
+
+  lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
+}
+
+
 // Update Graphs 
 // TODO handle subtraction of lap
 
-static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time)
+static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
-
-  //ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(  handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
+  if (!guiRace.isTimeBasedRace()) {
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+  }
+  else {
+    //time=time/100;
+    //dist=dist/100;
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased)",handleGFX,lap,time,dist);
+  }
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = lap;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = dist;
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = lap;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
   lv_chart_refresh(chartLaps); //Required after direct set
 }
 
-static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time)
+static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
-  //ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d time:%d)",handleGFX,lap,time);
-
+  if (!guiRace.isTimeBasedRace()) {
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+  }
+  else {
+    //time=time/100;
+    //dist=dist/100;
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased)",handleGFX,lap,time,dist);
+  }
   guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = lap;
+  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
   lv_chart_refresh(chartLaps); //Required after direct set
 }
 
+/*
 static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
 {
   if (guiParticipants[handleGFX].seriesRSSI == nullptr) {
@@ -692,6 +810,7 @@ static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
   //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,plotValue);
   lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, plotValue);
 }
+*/
 
 static void gfxClearAllParticipantData()
 {
@@ -731,7 +850,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 
     if (msg.laps > guiParticipants[handleGFX].laps) {
       // new lap
-      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
+      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime, msg.distance);
     }
     else if (msg.laps < guiParticipants[handleGFX].laps) {
       // lap deleted
@@ -739,7 +858,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     }
     else if ( msg.lastLapTime != guiParticipants[handleGFX].thisLapStart) {
       // lap updated
-      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime);
+      gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime, msg.distance);
     }
     
     guiParticipants[handleGFX].laps = msg.laps;
@@ -750,12 +869,18 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
       lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceDist, "%4.3fkm",msg.distance/1000.0);
     }
 
-
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
-    if (guiParticipants[handleGFX].inRace) {
-      lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
+    if (!guiRace.isTimeBasedRace()) {
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
+      if (guiParticipants[handleGFX].inRace) {
+        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
+      }
     }
-
+    else {
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d)",msg.laps);
+      if (guiParticipants[handleGFX].inRace) {
+        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d)",msg.laps);
+      }
+    }
     struct tm timeinfo;
     time_t tt = msg.lastLapTime;
     localtime_r(&tt, &timeinfo);
@@ -774,7 +899,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
       conn = std::string("");
     } else {
       // if msg.connectionStatus < 0 (as it should) it is the RSSI value of the tag
-      gfxUpdateParticipantChartLastSeen(handleGFX, msg.laps, msg.lastSeenTime);
+      gfxUpdateParticipantChartLastSeen(handleGFX, msg.laps, msg.lastSeenTime, msg.distance);
       conn = std::string(LV_SYMBOL_EYE_OPEN);
       // TODO plot RSSI??
     }
@@ -783,7 +908,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     if (guiParticipants[handleGFX].inRace) {
       lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
     }
-    gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
+    //gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
 }
 
 static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
@@ -815,7 +940,7 @@ static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
     lv_label_set_text_fmt(guiParticipants[handleGFX].labelBattery, "%3d%%",msg.battery);
   }
 
-  gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
+  //gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
 }
 
 // updated same fields as gfxAddParticipant() but without creating a new 
@@ -852,7 +977,7 @@ static uint32_t gfxAddParticipant(msg_AddParticipant &msgParticipant)
 //  }
   gfxAddUserToParticipants(tabParticipants, msgParticipant, handleGFX);
   gfxUpdateInRace(msgParticipant.inRace, handleGFX);
-  gfxUpdateParticipantChartNewLap(handleGFX,0,0);
+  gfxUpdateParticipantChartNewLap(handleGFX,0,0,0);
   globalHandleGFX++;
   if(handleGFX >= ITAG_COUNT) {
     ESP_LOGI(TAG,"Added all Users handleGFX:%d from MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d --------- COME ON LETS PARTY!!!!!!!!!!!!!!!!!!", handleGFX,
@@ -909,6 +1034,11 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   else {
     lapsDistances = raceConfig->distance / laps;
   }
+
+  // Genaral info page
+  lv_label_set_text(globalLabelRaceName, name.c_str());
+
+  // Race config info page
   lv_textarea_set_text(textAreaConfigRaceFileName,fileName.c_str());
   lv_textarea_set_text(textAreaConfigRaceName,name.c_str());
 
@@ -1233,16 +1363,37 @@ static lv_obj_t * addConfigBool(lv_obj_t * parent, uint8_t row, char *labelText,
   return lvobj;
 }
 
-void guiRace::createGUITabConfig(lv_obj_t * parent)
+/*
+static void scroll_begin_event(lv_event_t * e)
 {
-  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_column(parent,2,0);
-  lv_obj_set_style_pad_row(parent,2,0);
-  lv_obj_set_style_pad_all(parent, 2,0);
+    // Disable the scroll animations. Triggered when a tab button is clicked
+    if(lv_event_get_code(e) == LV_EVENT_SCROLL_BEGIN) {
+        lv_anim_t * a = lv_event_get_param(e);
+        if(a)  a->time = 0;
+    }
+}
+*/
+
+void guiRace::createGUITabConfig(lv_obj_t * settingTab)
+{
+  lv_obj_t * tabview;
+  tabview = lv_tabview_create(settingTab, LV_DIR_LEFT, 80);
+  //lv_obj_add_event_cb(lv_tabview_get_content(tabview), scroll_begin_event, LV_EVENT_SCROLL_BEGIN, NULL);
+
+  lv_obj_t * tabConf = lv_tabview_add_tab(tabview, LV_SYMBOL_DIRECTORY);
+  lv_obj_t * tabSignalStrenght = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI);
+#ifdef TESTCODE
+  lv_obj_t * tabTest = lv_tabview_add_tab(tabview, "Test");
+#endif
+  // ------------------------------ RaceConfig
+  lv_obj_set_flex_flow(tabConf, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(tabConf,2,0);
+  lv_obj_set_style_pad_row(tabConf,2,0);
+  lv_obj_set_style_pad_all(tabConf, 2,0);
 
   // ---- Load & Save buttons
 
-  lv_obj_t * panel1 = lv_obj_create(parent);
+  lv_obj_t * panel1 = lv_obj_create(tabConf);
   lv_obj_set_height(panel1, LV_SIZE_CONTENT);
   lv_obj_set_width(panel1, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(panel1, LV_FLEX_FLOW_ROW);
@@ -1277,7 +1428,7 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
                                  LV_GRID_CONTENT,
                                  LV_GRID_TEMPLATE_LAST};
 
-  lv_obj_t * configGrid = lv_obj_create(parent);
+  lv_obj_t * configGrid = lv_obj_create(tabConf);
   lv_obj_set_size(configGrid, LV_PCT(100), LV_SIZE_CONTENT);
   //lv_obj_set_height(configGrid, LV_SIZE_CONTENT);
   //lv_obj_set_width(configGrid, LV_PCT(100));
@@ -1297,71 +1448,29 @@ void guiRace::createGUITabConfig(lv_obj_t * parent)
   textAreaConfigRaceUpdateCloserTime = addConfigNumber(configGrid, row++, "Participand closing in time:", 0, "s", true);
   textAreaConfigRaceRaceStartIn      = addConfigNumber(configGrid, row++, "Race start countdown:", 0, "s", true);
 
+  // ------------------------------ TagSignal
+  createGUITabRSSI(tabSignalStrenght);
+
+#ifdef TESTCODE
+  // ------------------------------ Test
+  lv_obj_set_flex_flow(tabTest, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(tabTest,2,0);
+  lv_obj_set_style_pad_row(tabTest,2,0);
+  lv_obj_set_style_pad_all(tabTest, 2,0);
+
+  lv_obj_t * btnm1 = lv_btnmatrix_create(tabTest);
+  lv_btnmatrix_set_map(btnm1, btnTest_map);
+  lv_obj_align(btnm1, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_add_event_cb(btnm1, btnTest_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_set_height(btnm1, LV_PCT(100));
+  lv_obj_set_width(btnm1, LV_PCT(100));
+
+
+#endif
   ESP_LOGI(TAG,"createGUITabConfig() Done");
 }
 
-void guiRace::createGUITabRaceGraph()
-{
-  ESP_LOGI(TAG,"createGUITabRaceGraph()");
-
-  lv_obj_t * parent = tabGraph;
-  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_column(parent,5,0);
-  lv_obj_set_style_pad_row(parent,5,0);
-  lv_obj_set_style_pad_all(parent, 5,0);
-
-  ESP_LOGI(TAG,"createGUITabRaceGraph() Create graph!");
-  chartLaps = lv_chart_create(parent);
-  lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_MID, 0, 0);
-  lv_obj_set_size(chartLaps, LV_PCT(90), LV_PCT(85));
-  lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
-
-  if(isDataValid()) {
-    updateGUITabRaceGraph();
-  }
-}
-
-void guiRace::updateGUITabRaceGraph()
-{
-  ESP_LOGI(TAG,"createGUITabRaceGraph()");
-  if(!isDataValid()) {
-    ESP_LOGE(TAG,"createGUITabRaceGraph() called before all data is valid, do nothing");
-    return;
-  }
-
-  bool timeBasedRace = isTimeBasedRace();
-  time_t maxTime = getMaxTime();
-  uint32_t laps = getLaps();
-
-  if (!timeBasedRace) {
-    maxTime +=1; // add some space for slow runners to still be visiable
-    laps += 2; // add some laps if someone get feeling for one extra
-  }
-  else {
-    laps=30; //TODO test 999
-  }
-
-  if (!timeBasedRace) {
-    lv_chart_set_div_line_count(chartLaps, laps+1, maxTime+1);  //revered order Y-Horizontal first
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, maxTime+1, 4, true, 50);
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 5, 3, laps+1, 1, true, 50);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, laps);
-  }
-  else {
-    lv_chart_set_div_line_count(chartLaps, maxTime+1, maxTime+1); //revered order Y-Horizontal first
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, (maxTime/2)+1, 2, true, 70);
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 170);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, maxTime);
-  }
-
-  lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
-}
-
-
-
-static void createGUITabRSSI(lv_obj_t * parent)
+void guiRace::createGUITabRSSI(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_column(parent,5,0);
@@ -1372,9 +1481,7 @@ static void createGUITabRSSI(lv_obj_t * parent)
   lv_obj_align_to(chartRSSI, parent, LV_ALIGN_BOTTOM_LEFT, 0, 0);
   lv_obj_set_size(chartRSSI, LV_PCT(100), LV_PCT(100));
   lv_chart_set_type(chartRSSI, LV_CHART_TYPE_LINE);
-  
-  const uint32_t ydiv_num = 8;
-  const uint32_t xdiv_num = 9;
+
   lv_chart_set_div_line_count(chartRSSI, 10, 10);
 //  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
 //  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
@@ -1462,60 +1569,62 @@ void createGUI(void)
 //  lv_img_set_src(logo, &img_lvgl_logo);
 //  lv_obj_align(logo, LV_ALIGN_LEFT_MID, -TAB_POS + 25, 0);
 
-  lv_obj_t * labelRaceName = lv_label_create(tab_btns);
-  lv_label_set_text(labelRaceName, "Revolution Marathon");
-  lv_obj_add_style(labelRaceName, &styleTitle, 0);
-//  lv_obj_align_to(labelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
-  lv_obj_align(labelRaceName, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 10);
+  globalLabelRaceName = lv_label_create(tab_btns);
+  lv_label_set_text(globalLabelRaceName, "VXO SM24H 2023");
+  lv_obj_add_style(globalLabelRaceName, &styleTitle, 0);
+//  lv_obj_align_to(globalLabelRaceName, logo, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+  lv_obj_align(globalLabelRaceName, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 10);
 
-  lv_obj_t * label = lv_label_create(tab_btns);
-  lv_label_set_text(label, "Crazy Capy Time");
-  lv_obj_add_style(label, &styleTitle, 0);
-  lv_obj_add_style(label, &styleTextMuted, 0);
-//  lv_obj_align_to(label, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
-  lv_obj_align(label, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 35);
-//  lv_obj_align_to(label, labelRaceName, LV_ALIGN_OUT_LEFT_BOTTOM, 0, 20);
+  globalLabelRaceTag = lv_label_create(tab_btns);
+  lv_label_set_text(globalLabelRaceTag, "Crazy Capy Time");
+  lv_obj_add_style(globalLabelRaceTag, &styleTagSmallText, 0);
+  lv_obj_add_style(globalLabelRaceTag, &styleTextMuted, 0);
+//  lv_obj_align_to(globalLabelRaceTag, logo, LV_ALIGN_OUT_RIGHT_BOTTOM, 10, 0);
+  lv_obj_align(globalLabelRaceTag, LV_ALIGN_OUT_LEFT_TOP, -TAB_POS + 10, 35);
+//  lv_obj_align_to(globalLabelRaceTag, labelRaceName, LV_ALIGN_OUT_LEFT_BOTTOM, 0, 20);
 
   lv_obj_t * btnTime = lv_btn_create(tab_btns); 
-  lv_obj_align_to(btnTime, labelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, -10);
+  lv_obj_align_to(btnTime, globalLabelRaceName, LV_ALIGN_OUT_RIGHT_TOP, 10, -10);
   //lv_obj_align(btnTime, LV_ALIGN_CENTER, -30, -((TAB_HIGHT-10)/2));
   //lv_obj_set_pos(btnTime, 10, 10);                            /*Set its position*/
   //lv_obj_set_size(btnTime, 120, 50);                          /*Set its size*/
   lv_obj_set_width(btnTime,TAB_TIME_WIDTH);
   lv_obj_add_event_cb(btnTime, btnTime_event_cb, LV_EVENT_ALL, NULL);
 
-  labelRaceTime = lv_label_create(btnTime);  // Add a label to the button
-  lv_label_set_text(labelRaceTime, "Start!");
-  lv_obj_center(labelRaceTime);
-  lv_obj_add_style(labelRaceTime, &styleTime, 0);
+  globalLabelRaceTime = lv_label_create(btnTime);  // Add a label to the button
+  lv_label_set_text(globalLabelRaceTime, "Start!");
+  lv_obj_center(globalLabelRaceTime);
+  lv_obj_add_style(globalLabelRaceTime, &styleTime, 0);
 
   tabRace = lv_tabview_add_tab(tabView, "Race"); 
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
   lv_obj_t * tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
-  lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
-  lv_obj_t * tab5 = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
+  //lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
+  lv_obj_t * tabConf = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
-  guiRace.setTabGraph(tabGraph); // Will be populated later when we get the race config msg
-  createGUITabRSSI(tab4);
-  guiRace.createGUITabConfig(tab5);
+  guiRace.setTabGraph(tabGraph); // Will be re-configurated later with when we get the race config msg
+  guiRace.createGUITabConfig(tabConf);
 }
-
 
 void updateGUITime()
 {
+  char buff[30];
+  tm timeNow = rtc.getTimeStruct();
+  time_t now = mktime(&timeNow);
+
   if (raceOngoing) {
-    tm timeNow = rtc.getTimeStruct();
-    time_t now = mktime(&timeNow);
     time_t currentRaceTime = difftime(now, guiRace.getRaceStart());
-    char buff[30];
     strftime (buff, 30, "%H:%M:%S", localtime(&currentRaceTime));
-    lv_label_set_text(labelRaceTime, buff);
+    lv_label_set_text(globalLabelRaceTime, buff);
   }
   else if(raceStartIn) {
-    lv_label_set_text_fmt(labelRaceTime, ">>  %d  <<", raceStartIn);
+    lv_label_set_text_fmt(globalLabelRaceTime, ">>  %d  <<", raceStartIn);
   }
+
+  strftime (buff, 30, "%Y-%m-%d %H:%M:%S", localtime(&now));
+  lv_label_set_text(globalLabelRaceTag, buff);
 }
 
 void loopHandlLVGL()
@@ -1741,7 +1850,6 @@ void vTaskLVGL( void *pvParameters )
   vTaskDelete( NULL ); // Should never be reached in the good case
 }
 
-
 // WARNING Executes in the timer deamon contex, NO blocking and NO touching of our data, we will just send a msg to out thread and handle everything there.
 void vTaskGUITimer( TimerHandle_t xTimer )
 {
@@ -1789,7 +1897,4 @@ void initLVGL()
     ESP_LOGE(TAG,"----- esp_restart() -----");
     esp_restart();
   }
-
-
 }
-

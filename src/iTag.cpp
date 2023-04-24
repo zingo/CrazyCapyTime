@@ -122,10 +122,16 @@ class Race {
     }
     double getLapDistance()
     {
-      if(laps == 0) {
-        laps = 1; // Should never be 0 but if it is lets fix it before the division below
+      if (!timeBasedRace) {
+        if(laps == 0) {
+          laps = 1; // Should never be 0 but if it is lets fix it before the division below
+        }
+        return static_cast<double>(distance)/static_cast<double>(laps);
       }
-      return static_cast<double>(distance)/static_cast<double>(laps);
+      else {
+        // In timebased race distance is lap
+        return distance;
+      }
     }
     time_t getBlockNewLapTime() {return blockNewLapTime;}
     time_t getUpdateCloserTime() {return updateCloserTime;}
@@ -988,7 +994,7 @@ void vTaskRaceDB( void *pvParameters )
               if (!iTags[j].active) {
                 ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
                 
-                // TODO we should not rely on this struct being the same and it should probably be a new struct
+                // TODO we should not rely on this struct being the same as MSG_ITAG_DETECTED and it should probably be a new struct
                 msg.iTag.header.msgType = MSG_ITAG_CONFIG;
                 BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //Don't wait if queue is full, just retry next time we scan the tag
                 if (xReturned)
