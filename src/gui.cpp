@@ -710,6 +710,8 @@ void guiRace::createGUITabRaceGraph()
   lv_obj_center(chartLaps);
   lv_obj_set_size(chartLaps, LV_PCT(90), LV_PCT(85));
   lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
+  // Do not display points on the data
+  lv_obj_set_style_size(chartLaps, 0, LV_PART_INDICATOR);
 
   if(isDataValid()) {
     updateGUITabRaceGraph();
@@ -735,7 +737,7 @@ void guiRace::updateGUITabRaceGraph()
     laps += 2; // add some laps if someone get feeling for one extra
   }
   else {
-    laps=300; //TODO use 999
+    laps=300; //TODO use 999, 300 should be enough for VXO24h for now so lets keep it safe and test more before going bananas
   }
 
   if (!timeBasedRace) {
@@ -749,18 +751,24 @@ void guiRace::updateGUITabRaceGraph()
   }
   else {
     lv_chart_set_div_line_count(chartLaps, maxTime+1, maxTime+1); //reversed order Y-Horizontal first
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_X, 20, 10, (maxTime/2)+1, 2, true, 70);
-    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 170);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, (maxTime/2)+1, 2, false, 25);
+    lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 150);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime*60*60);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, maxTime*10*1000);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, maxTime);
+    //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, maxTime*60*60);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, maxTime);
     ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d]",maxTime*60*60,maxTime*10*1000);
   }
 
-  lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
+  if (!timeBasedRace) {
+    // Save 2 points per lap, "Arrave" and "Leave", with long few laps you take a short refill break
+    lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
+  }
+  else {
+    // Save 1 point per lap, "Arrave" with sort laps you usually just pass by this make it use a lot less data in the graph
+    lv_chart_set_point_count(chartLaps, (laps*ITAG_COUNT));
+  }
 }
-
 
 // Update Graphs 
 // TODO handle subtraction of lap
@@ -769,16 +777,18 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
 {
   if (!guiRace.isTimeBasedRace()) {
     ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
+    guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = dist;
+    guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
+    guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
   }
   else {
     //time=time/100;
     //dist=dist/100;
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased only save arrive)",handleGFX,lap,time,dist);
+    guiParticipants[handleGFX].seriesLaps->x_points[lap] = time;
+    guiParticipants[handleGFX].seriesLaps->y_points[lap] = dist;
   }
-  guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = dist;
-  guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
   lv_chart_refresh(chartLaps); //Required after direct set
 }
 
@@ -786,15 +796,19 @@ static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, 
 {
   if (!guiRace.isTimeBasedRace()) {
     ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
+    guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
+    lv_chart_refresh(chartLaps); //Required after direct set
   }
   else {
     //time=time/100;
     //dist=dist/100;
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased do nothing)",handleGFX,lap,time,dist);
+    //TODO or do nothing here ????
+    //guiParticipants[handleGFX].seriesLaps->x_points[lap] = time;
+    //guiParticipants[handleGFX].seriesLaps->y_points[lap] = dist;
+    //lv_chart_refresh(chartLaps); //Required after direct set
   }
-  guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
-  guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
-  lv_chart_refresh(chartLaps); //Required after direct set
 }
 
 /*
@@ -831,10 +845,16 @@ static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
 
   for(uint32_t lap = fromLap; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
   {
-    guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
-    guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
-    guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
-    guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+    if (!guiRace.isTimeBasedRace()) {
+      guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
+    }
+    else {
+      guiParticipants[handleGFX].seriesLaps->x_points[lap] = LV_CHART_POINT_NONE;
+      guiParticipants[handleGFX].seriesLaps->y_points[lap] = LV_CHART_POINT_NONE;
+    }
   }
   lv_chart_refresh(chartLaps); //Required after direct set
 }
