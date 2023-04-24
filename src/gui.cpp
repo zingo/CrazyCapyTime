@@ -88,7 +88,7 @@ static lv_obj_t *globalLabelRaceTime = nullptr;
 static lv_obj_t *tabRace = nullptr;
 static lv_obj_t *tabParticipants = nullptr;
 static lv_obj_t *chartLaps = nullptr;
-static lv_obj_t *chartRSSI = nullptr;
+//static lv_obj_t *chartRSSI = nullptr;
 
 static lv_obj_t* keyboard = nullptr;
 
@@ -110,7 +110,7 @@ class guiParticipant {
 
     // Graph
     lv_chart_series_t * seriesLaps = nullptr;;
-    lv_chart_series_t * seriesRSSI = nullptr;;
+    //lv_chart_series_t * seriesRSSI = nullptr;;
 
     bool inRace;
     // RaceTab (only valid if inRace is true)
@@ -176,7 +176,7 @@ class guiRace {
     lv_obj_t * tabGraph = nullptr;
 
     void createGUITabRaceGraph();
-    void createGUITabRSSI(lv_obj_t * parent);
+    //void createGUITabRSSI(lv_obj_t * parent);
 };
 
 static guiRace guiRace;
@@ -664,14 +664,14 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   lv_chart_series_t * seriesLaps = lv_chart_add_series(chartLaps, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
-  lv_chart_series_t * seriesRSSI = lv_chart_add_series(chartRSSI, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
+  //lv_chart_series_t * seriesRSSI = lv_chart_add_series(chartRSSI, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
 
   // All well so far, lets update the internal struct with the info.
   guiParticipants[handleGFX].handleDB = msgParticipant.handleDB;
   guiParticipants[handleGFX].laps = 0;
   guiParticipants[handleGFX].thisLapStart = 0;
   guiParticipants[handleGFX].seriesLaps = seriesLaps;
-  guiParticipants[handleGFX].seriesRSSI = seriesRSSI;
+  //guiParticipants[handleGFX].seriesRSSI = seriesRSSI;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].ledColor0 = ledColor0;
@@ -1401,7 +1401,7 @@ void guiRace::createGUITabConfig(lv_obj_t * settingTab)
   //lv_obj_add_event_cb(lv_tabview_get_content(tabview), scroll_begin_event, LV_EVENT_SCROLL_BEGIN, NULL);
 
   lv_obj_t * tabConf = lv_tabview_add_tab(tabview, LV_SYMBOL_DIRECTORY);
-  lv_obj_t * tabSignalStrenght = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI);
+  //lv_obj_t * tabSignalStrenght = lv_tabview_add_tab(tabview, LV_SYMBOL_WIFI);
 #ifdef TESTCODE
   lv_obj_t * tabTest = lv_tabview_add_tab(tabview, "Test");
 #endif
@@ -1450,10 +1450,7 @@ void guiRace::createGUITabConfig(lv_obj_t * settingTab)
 
   lv_obj_t * configGrid = lv_obj_create(tabConf);
   lv_obj_set_size(configGrid, LV_PCT(100), LV_SIZE_CONTENT);
-  //lv_obj_set_height(configGrid, LV_SIZE_CONTENT);
-  //lv_obj_set_width(configGrid, LV_PCT(100));
 
-  //lv_obj_center(configGrid);
   lv_obj_set_grid_dsc_array(configGrid, col_dsc, row_dsc);
 
   uint32_t row = 0;
@@ -1469,7 +1466,7 @@ void guiRace::createGUITabConfig(lv_obj_t * settingTab)
   textAreaConfigRaceRaceStartIn      = addConfigNumber(configGrid, row++, "Race start countdown:", 0, "s", true);
 
   // ------------------------------ TagSignal
-  createGUITabRSSI(tabSignalStrenght);
+  //createGUITabRSSI(tabSignalStrenght);
 
 #ifdef TESTCODE
   // ------------------------------ Test
@@ -1490,6 +1487,7 @@ void guiRace::createGUITabConfig(lv_obj_t * settingTab)
   ESP_LOGI(TAG,"createGUITabConfig() Done");
 }
 
+/*
 void guiRace::createGUITabRSSI(lv_obj_t * parent)
 {
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
@@ -1503,20 +1501,17 @@ void guiRace::createGUITabRSSI(lv_obj_t * parent)
   lv_chart_set_type(chartRSSI, LV_CHART_TYPE_LINE);
 
   lv_chart_set_div_line_count(chartRSSI, 10, 10);
-//  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_X, 20, 10, 10, 6, true, 25);
-//  lv_chart_set_axis_tick(chartRSSI, LV_CHART_AXIS_PRIMARY_Y, 5, 3, 8, 1, true, 20);
-    
-    lv_obj_set_style_size(chartRSSI, 0, LV_PART_INDICATOR); // Do not display points on the data
-
+  lv_obj_set_style_size(chartRSSI, 0, LV_PART_INDICATOR); // Do not display points on the data
 
 #define RSSI_CHART_POINTS 780
 
-  //lv_chart_set_range(chartRSSI, LV_CHART_AXIS_PRIMARY_X, 0, RSSI_CHART_POINTS);
   lv_chart_set_range(chartRSSI, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
   lv_chart_set_point_count(chartRSSI, RSSI_CHART_POINTS);
 
   lv_chart_set_update_mode(chartRSSI, LV_CHART_UPDATE_MODE_SHIFT);
 }
+*/
+
 
 void createGUI(void)
 {
