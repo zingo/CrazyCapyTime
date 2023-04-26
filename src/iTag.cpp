@@ -747,7 +747,8 @@ static void DBloadRace()
   theRace.setRaceOngoing(raceOngoing);
   if (raceStart > rtc.getEpoch()) {
     // If our clock is older the race jump to that time
-    rtc.setTime(raceStart);
+    ESP_LOGW(TAG,"LoadRace WARNING race time is after NOW faking a timejump to race time by force");
+    rtc.setTime(raceStart,0);
   }
 
 
@@ -842,10 +843,12 @@ static void DBloadRace()
         }
         time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
         time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
+        unsigned long now = rtc.getEpoch();
 
-        if (lapLastSeen > rtc.getEpoch()) {
+        if ((raceStart+lapStart+lapLastSeen) > now) {
           // If our clock is older the lapLastSeen jump to that time
-          rtc.setTime(lapLastSeen);
+          ESP_LOGW(TAG,"LoadRace WARNING race lapLastSeen is after NOW by %d s faking a timejump to race time by force",(raceStart+lapStart+lapLastSeen) - now);
+          rtc.setTime((raceStart+lapStart+lapLastSeen),0);
         }
 
         //ESP_LOGI(TAG,"         lap[%4d] StartTime:%8d, lastSeen:%8d",lap,lapStart,lapLastSeen);
@@ -855,6 +858,7 @@ static void DBloadRace()
         else {
           iTags[i].participant.nextLap(lapStart, lapLastSeen);
         }
+        //delay(10); // allow some time for other stuff if loading a big file
       }
     }
   }
