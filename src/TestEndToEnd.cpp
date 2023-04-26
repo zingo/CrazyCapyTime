@@ -37,17 +37,20 @@ enum class EndToEndTest : uint32_t
     Test24HLive,
     Test24HFastCont,
     Test24HLiveCont,
+    ResetRTCfromHW,
     StopTest
 };
 
 static void Test24H(enum class EndToEndTest testEndToEnd);
 static void Test24HContinue(enum class EndToEndTest testEndToEnd);
+static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd);
 
 enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HFast") return EndToEndTest::Test24HFast;
     if (inString == "Test24HLive") return EndToEndTest::Test24HLive;
     if (inString == "Test24HFastCont") return EndToEndTest::Test24HFastCont;
     if (inString == "Test24HLiveCont") return EndToEndTest::Test24HLiveCont;
+    if (inString == "ResetRTCfromHW") return EndToEndTest::ResetRTCfromHW;
     if (inString == "StopTest") return EndToEndTest::StopTest;
     return EndToEndTest::StopTest;
 }
@@ -57,6 +60,7 @@ std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HLive) return std::string("Test24HLive");
     if (enu == EndToEndTest::Test24HFastCont) return std::string("Test24HFastCont");
     if (enu == EndToEndTest::Test24HLiveCont) return std::string("Test24HLiveCont");
+    if (enu == EndToEndTest::ResetRTCfromHW) return std::string("ResetRTCfromHW");
     if (enu == EndToEndTest::StopTest) return std::string("StopTest");
     return std::string("StopTest");
 }
@@ -66,7 +70,8 @@ void executeEndToEndTest(enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HLive) return Test24H(enu);
     if (enu == EndToEndTest::Test24HFastCont) return Test24HContinue(enu);
     if (enu == EndToEndTest::Test24HLiveCont) return Test24HContinue(enu);
-    if (enu == EndToEndTest::StopTest) return vTaskDelete( NULL );
+    if (enu == EndToEndTest::ResetRTCfromHW) return ResetRTCfromHW(enu);
+    if (enu == EndToEndTest::StopTest) return;
     return;
 }
 
@@ -234,6 +239,13 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
   }
 }
 
+void initRTC();
+
+static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd)
+{
+  initRTC();
+}
+
 static void Test24HContinue(enum class EndToEndTest testEndToEnd)
 {
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
@@ -320,7 +332,7 @@ void vTaskTestEndToEnd( void *pvParameters )
 
   executeEndToEndTest(testEndToEnd);
 
-
+  xHandleTestEndToEnd = nullptr;
   vTaskDelete( NULL );
 }
 

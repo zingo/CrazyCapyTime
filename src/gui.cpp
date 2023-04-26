@@ -462,7 +462,7 @@ void stopTestEndToEnd(); //TODO move to header
 
 static const char * btnTest_map[] = {"Test24HFast", "Test24HLive", "\n",
                                      "Test24HFastCont", "Test24HLiveCont", "\n",
-                                     "StopTest", "StopTest", "StopTest", ""
+                                     "ResetRTCfromHW", "StopTest", "StopTest", ""
                                 };
 
 static void btnTest_event_cb(lv_event_t * e)
