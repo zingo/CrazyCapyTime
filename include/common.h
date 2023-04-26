@@ -56,7 +56,7 @@ void showHeapInfo(void);
 // TODO move below to signals to remove access to global variables
 void startRaceCountdown();
 void continueRace(time_t raceStartTime);
-
+void stopRace();
 
 
 enum class HWPlatform : uint8_t

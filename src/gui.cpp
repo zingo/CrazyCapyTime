@@ -223,10 +223,8 @@ static void btnTime_event_cb(lv_event_t * e)
     // could be used to override race restart protection
     if(code == LV_EVENT_LONG_PRESSED) {
       if (raceOngoing) {
-        raceStartIn = 0;
-        raceOngoing = false;
-        lv_obj_t * label = lv_obj_get_child(btn, 0);
-        lv_label_set_text_fmt(label, "Start!");
+        lv_label_set_text(globalLabelRaceTime, "Stopping...");
+        stopRace(); //TODO signal/message
       }
       else {
         raceStartIn = 0;
@@ -1987,6 +1985,9 @@ void updateGUITime()
   else if(raceStartIn) {
     lv_label_set_text_fmt(globalLabelRaceTime, ">>  %d  <<", raceStartIn);
   }
+  else {
+    lv_label_set_text(globalLabelRaceTime, "Start!");
+  }
 
   strftime (buff, 30, "%Y-%m-%d %H:%M:%S", localtime(&now));
   lv_label_set_text(globalLabelRaceTag, buff);
@@ -2063,9 +2064,15 @@ void loopHandlLVGL()
           // Broadcast Messages
           case MSG_RACE_START:
           {
-            //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d DO NOTHING", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
-            // TODO gfxRaceStart(msg.Broadcast.RaceStart.startTime);
+            //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
             guiRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
+            break;
+          }
+          case MSG_RACE_STOP:
+          {
+            //ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%x ", msg.Broadcast.RaceStop.header.msgType);
+            // Do nothing
+            // TODO keep our on raceOngoing state and set it here.
             break;
           }
           case MSG_RACE_CLEAR:

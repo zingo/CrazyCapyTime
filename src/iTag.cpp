@@ -552,6 +552,18 @@ static void raceStartiTags(time_t raceStartTime)
   saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
 }
 
+static void raceStopiTags()
+{
+  theRace.setRaceOngoing(false);
+  saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
+}
+
+static void raceContinueiTags()
+{
+  theRace.setRaceOngoing(true);
+  saveRace(); // Queue up a MSG_ITAG_SAVE_RACE
+}
+
 void refreshTagGUI()
 {
 //  ESP_LOGI(TAG,"----- Active tags: -----");
@@ -1190,7 +1202,15 @@ void vTaskRaceDB( void *pvParameters )
           // update GUI and handle the check if "long time no see" and "disconnect" status
           // This is used to not accedently count a lap in "too short laps"
           refreshTagGUI();
-          //rtc.setTime(rtc.getEpoch()+30,0); //DEBUG fake faster time for testing REMOVE
+
+          if (theRace.isRaceOngoing()) {
+            time_t now = rtc.getEpoch();
+            if ( (theRace.getRaceStart() + theRace.getMaxTime()*60*60 ) < now ) {
+              // Race is done
+              theRace.setRaceOngoing(false);
+              stopRace(); //TODO signal/message
+            }
+          }
 
           int nowMinute = rtc.getMinute();
           if (lastAutoSaveMinute != nowMinute) {
@@ -1210,6 +1230,14 @@ void vTaskRaceDB( void *pvParameters )
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = true;
           raceStartiTags(msg.Broadcast.RaceStart.startTime);
+          break;
+        }
+        case MSG_RACE_STOP:
+        {
+          ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%x", msg.Broadcast.RaceStop.header.msgType);
+          lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
+          autoSaveTainted = true;
+          raceStopiTags();
           break;
         }
         case MSG_RACE_CLEAR:

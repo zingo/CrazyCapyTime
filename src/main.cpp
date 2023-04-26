@@ -150,6 +150,20 @@ static void BroadcastRaceStart(time_t raceStartTime)
   xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
+// Don't touch data, just send messages, can be used from any context
+static void BroadcastRaceStop()
+{
+  msg_RaceDB msg;
+  msg.Broadcast.RaceStop.header.msgType = MSG_RACE_STOP;  // We send this to stop a ongoing race
+  ESP_LOGI(TAG,"Send: MSG_RACE_STOP MSG:0x%x",msg.Broadcast.RaceStop.header.msgType);
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+
+  msg_GFX msgGFX;
+  msgGFX.Broadcast.RaceStop.header.msgType = MSG_RACE_STOP;  // We send this to stop a ongoing race
+  ESP_LOGI(TAG,"Send: MSG_RACE_STOP MSG:0x%x",msgGFX.Broadcast.RaceStop.header.msgType);
+  xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
+}
+
 void startRaceCountdown()
 {
   ESP_LOGI(TAG,"================== startRaceCountdown() ================== ");
@@ -173,6 +187,14 @@ static void startRace()
 
   //BroadcastRaceClear();
   BroadcastRaceStart(raceStartTime);
+}
+
+void stopRace()
+{
+  ESP_LOGI(TAG,"================== stopRace() ================== ");
+  raceStartIn = 0;
+  raceOngoing = false;
+  BroadcastRaceStop();
 }
 
 //TODO add signal/message CONTINUE_RACE and move code below, called from from DBloadRace() if race is ongoinf when it was saved
@@ -313,7 +335,7 @@ void setup()
   initLittleFS();
 
   initRTC(); // After initLVGL as it setups wire-I2C
-
+  delay(100); //TODO do we need this? Ideas is to see if autoloaded race is correct in graph
   initRaceDB();
   ESP_LOGI(TAG, "Setup done switching to running loop");
 
