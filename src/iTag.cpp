@@ -327,11 +327,11 @@ class iTag {
 
 //TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7f:7c:b7", "Johan",   true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7e:82:46", "Johanna", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:74:90:fe", "Niklas",  true,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7f:39:ff", "Pavel",   true,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7d:d2:08", "Stefan",  true,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
+  iTag("ff:ff:10:7f:7c:b7", "Johan",   false,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
+  iTag("ff:ff:10:7e:82:46", "Johanna", false,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
+  iTag("ff:ff:10:74:90:fe", "Niklas",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
+  iTag("ff:ff:10:7f:39:ff", "Pavel",   false,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
+  iTag("ff:ff:10:7d:d2:08", "Stefan",  false,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
   iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
   iTag("ff:ff:10:7e:52:e0", "Tony",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
   iTag("ff:ff:10:7d:96:2a", "Markus",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
