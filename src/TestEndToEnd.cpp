@@ -35,15 +35,19 @@ enum class EndToEndTest : uint32_t
 {
     Test24HFast,
     Test24HLive,
+    Test24HFastCont,
+    Test24HLiveCont,
     StopTest
 };
 
 static void Test24H(enum class EndToEndTest testEndToEnd);
-
+static void Test24HContinue(enum class EndToEndTest testEndToEnd);
 
 enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HFast") return EndToEndTest::Test24HFast;
     if (inString == "Test24HLive") return EndToEndTest::Test24HLive;
+    if (inString == "Test24HFastCont") return EndToEndTest::Test24HFastCont;
+    if (inString == "Test24HLiveCont") return EndToEndTest::Test24HLiveCont;
     if (inString == "StopTest") return EndToEndTest::StopTest;
     return EndToEndTest::StopTest;
 }
@@ -51,6 +55,8 @@ enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
 std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFast) return std::string("Test24HFast");
     if (enu == EndToEndTest::Test24HLive) return std::string("Test24HLive");
+    if (enu == EndToEndTest::Test24HFastCont) return std::string("Test24HFastCont");
+    if (enu == EndToEndTest::Test24HLiveCont) return std::string("Test24HLiveCont");
     if (enu == EndToEndTest::StopTest) return std::string("StopTest");
     return std::string("StopTest");
 }
@@ -58,10 +64,19 @@ std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
 void executeEndToEndTest(enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFast) return Test24H(enu);
     if (enu == EndToEndTest::Test24HLive) return Test24H(enu);
+    if (enu == EndToEndTest::Test24HFastCont) return Test24HContinue(enu);
+    if (enu == EndToEndTest::Test24HLiveCont) return Test24HContinue(enu);
     if (enu == EndToEndTest::StopTest) return vTaskDelete( NULL );
     return;
 }
 
+static bool speedupWithTimeJumps(enum class EndToEndTest testEndToEnd)
+{
+  if (testEndToEnd == EndToEndTest::Test24HFast || testEndToEnd == EndToEndTest::Test24HFastCont) {
+    return true;
+  }
+  return false;
+}
 
 static void Test24H(enum class EndToEndTest testEndToEnd)
 {
@@ -76,7 +91,7 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
 
 
   // 24000m on 24h -> laps=(240000.0/lapDist) AvgLapTime=24*60*60/laps
-  uint32_t wantedDist=180*1000;
+  uint32_t wantedDist=170*1000;
   uint32_t wantedLaps=(wantedDist/lapDist)+1;
   time_t AvgLapTime = 24*60*60/wantedLaps; //blockNewLapTime+2;
 
@@ -106,6 +121,8 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
       }
     }
   }
+
+  delay(5*1000); //Allow some time to let everything propagate
   
   // Fake a "Setup done"
   {
@@ -130,6 +147,8 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
       }
     }
   }
+  
+  delay(5*1000); //Allow some time to let everything propagate
 
   // Setup a race
   ESP_LOGI(TAG,"EndToEnd Test: %s > SETUP RACE\n", EndToEndTestEnum2String(testEndToEnd).c_str());
@@ -161,6 +180,8 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
       ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
     }
   }
+  
+  delay(5*1000); //Allow some time to let everything propagate
 
   // Start race
   ESP_LOGI(TAG,"EndToEnd Test: %s > START RACE\n", EndToEndTestEnum2String(testEndToEnd).c_str());
@@ -173,17 +194,21 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
   
   for(;;)
   {
-    ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR LAP BLOCK +2s: %d\n", EndToEndTestEnum2String(testEndToEnd).c_str(),blockNewLapTime+2);
+    time_t thisLapTime = AvgLapTime;
+    thisLapTime = (thisLapTime - 60 ) + rand() % 120; // Time is a bit random +-60s 
+    if(thisLapTime < (blockNewLapTime+2)) thisLapTime = (blockNewLapTime+2);
+    ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR LAP %d (BLOCK: %d) \n", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime, blockNewLapTime);
 
-    if (testEndToEnd == EndToEndTest::Test24HFast) {
+    if (speedupWithTimeJumps(testEndToEnd)) {
       // Fake time jump by adding time to RTC
+      ESP_LOGI(TAG,"EndToEnd Test: %s > SKIP TIME %d wait %d\n", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime-4,4);
       rtc.setTime(rtc.getEpoch()+10,0);
       delay((2)*1000);
-      rtc.setTime(rtc.getEpoch()+AvgLapTime-12,0);
+      rtc.setTime(rtc.getEpoch()+thisLapTime-14,0);
       delay((2)*1000);
     }
     else {
-      delay((AvgLapTime)*1000);
+      delay((thisLapTime)*1000);
     }
   
     ESP_LOGI(TAG,"EndToEnd Test: %s > TAG\n", EndToEndTestEnum2String(testEndToEnd).c_str());
@@ -208,6 +233,77 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
     }
   }
 }
+
+static void Test24HContinue(enum class EndToEndTest testEndToEnd)
+{
+  std::string testTag("ff:ff:10:7e:be:67"); // Zingo
+  NimBLEAddress bleAddress(testTag);
+  time_t start = rtc.getEpoch();
+  uint32_t startIn = 15;
+  uint32_t lapDist = 821; //meter
+  // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
+  time_t blockNewLapTime = ((170*lapDist)/1000); //seconds
+
+
+  // 24000m on 24h -> laps=(240000.0/lapDist) AvgLapTime=24*60*60/laps
+  uint32_t wantedDist=170*1000;
+  uint32_t wantedLaps=(wantedDist/lapDist)+1;
+  time_t AvgLapTime = 24*60*60/wantedLaps; //blockNewLapTime+2;
+
+  ESP_LOGI(TAG,"EndToEnd Test: %s > CONTINUE 24H Race, LapDist:%d wantedDist:%d wantedLaps:%d -> AvgLapTime:%d (blockedTime:%d)\n", EndToEndTestEnum2String(testEndToEnd).c_str(),lapDist,wantedDist,wantedLaps,AvgLapTime,blockNewLapTime);
+
+
+  // Setup a iTag
+  // Fake a "ping"
+
+  // Start race
+  ESP_LOGI(TAG,"EndToEnd Test: %s > CONTUNE RACE\n", EndToEndTestEnum2String(testEndToEnd).c_str());
+
+  for(;;)
+  {
+    time_t thisLapTime = AvgLapTime;
+    thisLapTime = (thisLapTime - 60 ) + rand() % 120; // Time is a bit random +-60s 
+    if(thisLapTime < (blockNewLapTime+2)) thisLapTime = (blockNewLapTime+2);
+
+    ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR LAP %d (BLOCK: %d) \n", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime, blockNewLapTime);
+
+
+    if (speedupWithTimeJumps(testEndToEnd)) {
+      // Fake time jump by adding time to RTC
+      ESP_LOGI(TAG,"EndToEnd Test: %s > SKIP TIME %d wait %d\n", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime-4,4);
+      rtc.setTime(rtc.getEpoch()+10,0);
+      delay((2)*1000);
+      rtc.setTime(rtc.getEpoch()+thisLapTime-14,0);
+      delay((2)*1000);
+    }
+    else {
+      delay((thisLapTime)*1000);
+    }
+  
+    ESP_LOGI(TAG,"EndToEnd Test: %s > TAG\n", EndToEndTestEnum2String(testEndToEnd).c_str());
+    {
+      msg_RaceDB msg;
+      msg.iTag.header.msgType = MSG_ITAG_DETECTED;
+      msg.iTag.time = rtc.getEpoch();
+      msg.iTag.address = static_cast<uint64_t>(bleAddress);
+      msg.iTag.RSSI = INT8_MIN;
+      msg.iTag.battery = 78;
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
+      if (!xReturned)
+      {
+        ESP_LOGE(TAG,"ERROR iTAG detected queue is full: %s RETRY for 1s",String(bleAddress.toString().c_str()).c_str());
+        xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
+        if (!xReturned)
+        {
+          ESP_LOGE(TAG,"ERROR ERROR iTAG detected queue is still full: %s trow a way detected",String(bleAddress.toString().c_str()).c_str());
+          //TODO do something clever ??? Collect how many?
+        }
+      }
+      delay((1)*1000);
+    }
+  }
+}
+
 
 
 
