@@ -152,6 +152,7 @@ static void BroadcastRaceStart(time_t raceStartTime)
 
 void startRaceCountdown()
 {
+  ESP_LOGI(TAG,"================== startRaceCountdown() ================== ");
   unsigned long now = rtc.getEpoch();
   ESP_LOGI(TAG,"startRaceCountdown()");
   raceStartIn = RACE_COUNTDOWN; //seconds
@@ -163,6 +164,7 @@ void startRaceCountdown()
 
 static void startRace()
 {
+  ESP_LOGI(TAG,"================== startRace() ================== ");
   raceStartInEpoch = rtc.getEpoch();
   tm timeNow = rtc.getTimeStruct();
   time_t raceStartTime = mktime(&timeNow);
@@ -173,9 +175,10 @@ static void startRace()
   BroadcastRaceStart(raceStartTime);
 }
 
-//TODO add CONTINUE_RACE and move code below, called from from DBloadRace() if race is ongoinf when it was saved
+//TODO add signal/message CONTINUE_RACE and move code below, called from from DBloadRace() if race is ongoinf when it was saved
 void continueRace(time_t raceStartTime)
 {
+  ESP_LOGI(TAG,"================== continueRace() ================== ");
   raceStartIn = 0;
   raceOngoing = true;
 
