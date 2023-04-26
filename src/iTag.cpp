@@ -50,8 +50,18 @@ class Race {
       if(laps == 0) {  //TODO make this a compiler check
         laps = 1; // Should never be 0 but if it is lets fix it
       }
+      uint32_t lapLenght;
+
+      if (!timeBasedRace) {
+        lapLenght = distance/laps;
+      }
+      else {
+        // In timebase races lap lenght = dist  
+        lapLenght = distance;
+      }
+
       // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
-      blockNewLapTime = ((170*distance/laps)/1000);
+      blockNewLapTime = ((170*lapLenght)/1000);
     }
 
     void receive_ConfigMsg(msg_RaceConfig *raceConfig)
