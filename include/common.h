@@ -26,10 +26,24 @@ extern bool raceOngoing;
 #define TASK_GUI_STACK (90*1024)
 
 // The participant to show for goal in the graph
-// 5 = ZINGO
-#define DEFAULT_PARTICIPANT 5
+// 4 = ZINGO
+#define DEFAULT_PARTICIPANT 4
 // The participant the goal
 #define DEFAULT_PARTICIPANT_GOAL (170*1000)
+
+// If ALL_TAGS_TRIGGER_DEFAULT_PARTICIPANT is defined
+// any of the registrated tags will trigger the DEFAULT_PARTICIPANT
+// instead of the correct participant.
+// This is a temporary fix for a one man race mode, e.g. using this as a
+// your own race timetaking in a 24H race to get the special nice info from
+// the graph view and ALSO give the increased lap detection of having more
+// then one TAG.
+// e.g. Im the only one using this and to make it less likely for fails
+// or missed detection I will bring 2-3 tags.
+// Plan is to make it possible to asign more TAGs per user in the future and
+// remove this config from here.
+#define ALL_TAGS_TRIGGER_DEFAULT_PARTICIPANT
+
 
 extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;

@@ -327,24 +327,24 @@ class iTag {
 
 //TODO update BTUUIDs, names and color, also make name editable from GUI
 iTag iTags[ITAG_COUNT] = {
-  iTag("ff:ff:10:7f:7c:b7", "Johan",   false,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7e:82:46", "Johanna", false,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:74:90:fe", "Niklas",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7f:39:ff", "Pavel",   false,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7d:d2:08", "Stefan",  false,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //02
-  iTag("ff:ff:10:7e:be:67", "Zingo",   true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //01
-  iTag("ff:ff:10:7e:52:e0", "Tony",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7d:96:2a", "Markus",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK),
-  iTag("ff:ff:10:7f:7a:4e", "Black1",    false,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:7f:8a:0f", "White1",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:73:66:5f", "Pink1",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:6a:79:b4", "Pink2",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:80:73:95", "Orange1", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE),
-  iTag("ff:ff:10:80:71:e7", "Orange2",  false, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK),
-  iTag("ff:ff:10:7e:04:4e", "Blue1",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE),
-  iTag("ff:ff:10:7d:53:fe", "Blue2",  false, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//---
-  iTag("ff:ff:10:7f:2f:ee", "Black2",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE),
-  iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)     //Light green BT4
+  iTag("ff:ff:10:7e:be:67", "OrangeBlue",   false,  ITAG_COLOR_ORANGE,  ITAG_COLOR_DARKBLUE), //00
+  iTag("ff:ff:10:7f:7c:b7", "Zingo0",  true,  ITAG_COLOR_BLACK,   ITAG_COLOR_PINK), //01
+  iTag("ff:ff:10:7d:53:fe", "Zingo1",  true, ITAG_COLOR_DARKBLUE,   ITAG_COLOR_PINK),//02
+  iTag("ff:ff:10:80:71:e7", "Zingo2",  true, ITAG_COLOR_ORANGE,   ITAG_COLOR_BLACK), //03
+  iTag("ff:ff:10:7e:82:46", "Zingo", true,  ITAG_COLOR_ORANGE,  ITAG_COLOR_ORANGE), //04
+  iTag("ff:ff:10:7d:d2:08", "BlueOrange",  false,  ITAG_COLOR_DARKBLUE,ITAG_COLOR_ORANGE),  //05
+  iTag("ff:ff:10:7e:52:e0", "BlueBlack",    false,  ITAG_COLOR_DARKBLUE,  ITAG_COLOR_BLACK), //06
+  iTag("ff:ff:10:7d:96:2a", "WhitePink",  false,  ITAG_COLOR_WHITE,   ITAG_COLOR_PINK), //07
+  iTag("ff:ff:10:7f:7a:4e", "BlackWhite",    false,  ITAG_COLOR_BLACK,  ITAG_COLOR_WHITE), //08
+  iTag("ff:ff:10:7f:8a:0f", "WhiteOrange",  false, ITAG_COLOR_WHITE,  ITAG_COLOR_ORANGE), //09
+  iTag("ff:ff:10:73:66:5f", "PinkBlue",   false, ITAG_COLOR_PINK,ITAG_COLOR_DARKBLUE), //10
+  iTag("ff:ff:10:6a:79:b4", "PinkWhite",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_WHITE), //11
+  iTag("ff:ff:10:80:73:95", "OrangeWhite", false, ITAG_COLOR_ORANGE,ITAG_COLOR_WHITE), //12
+  iTag("ff:ff:10:7f:39:ff", "WhiteBlue",   false,  ITAG_COLOR_WHITE,   ITAG_COLOR_DARKBLUE), //13
+  iTag("ff:ff:10:7e:04:4e", "BlueBlue",   false, ITAG_COLOR_DARKBLUE,ITAG_COLOR_DARKBLUE), //14
+  iTag("ff:ff:10:74:90:fe", "PinkBlack",  false,  ITAG_COLOR_PINK,    ITAG_COLOR_BLACK), //15
+  iTag("ff:ff:10:7f:2f:ee", "BlackOrange",  false, ITAG_COLOR_BLACK,   ITAG_COLOR_ORANGE), //16
+  iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)   //17 Light green BT4
 };
 
 
@@ -969,10 +969,30 @@ void vTaskRaceDB( void *pvParameters )
           for(int j=0; j<ITAG_COUNT; j++)
           {
             if (bleAddress == iTags[j].address) {
+              //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",bleAddress.c_str());
               found = true;
-              //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",String(advertisedDevice->toString().c_str()).c_str());
-              //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
 
+              // First check if TAG needs to be configurated (to not beep when out of range)
+              if (!iTags[j].active) {
+                ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());                
+                // TODO we should not rely on this struct being the same as MSG_ITAG_DETECTED and it should probably be a new struct
+                msg.iTag.header.msgType = MSG_ITAG_CONFIG;
+                BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //Don't wait if queue is full, just retry next time we scan the tag
+                if (xReturned)
+                {
+                  //Only mark active if it was possible to put in on the queue, if not it will just retry next time we scan the tag
+                  iTags[j].active = true;  //TODO tristate, falst->asking->true (only send one msg)
+                }
+              }
+
+#ifdef ALL_TAGS_TRIGGER_DEFAULT_PARTICIPANT
+              // Override and always trigger this participant -> one man race mode use all TAGs
+              // This is done AFTER check for MSG_ITAG_CONFIG is sent to ensure every tag is configurated
+              //ESP_LOGI(TAG,"####### Spotted TAG:%d but fake it as TAG:%d %s Time: %s", j, DEFAULT_PARTICIPANT, iTags[DEFAULT_PARTICIPANT].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+              j = DEFAULT_PARTICIPANT;
+#else
+              //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+#endif
               time_t iTagLapTime = msg.iTag.time;
               time_t newLapTime = difftime(iTagLapTime, theRace.getRaceStart());
               iTags[j].setRSSI(msg.iTag.RSSI);
@@ -1024,19 +1044,7 @@ void vTaskRaceDB( void *pvParameters )
               iTags[j].participant.setUpdated(); // Make it redraw when GUI loop looks at it
               iTags[j].UpdateParticipantStatusInGUI();
               
-              if (!iTags[j].active) {
-                ESP_LOGI(TAG,"%s Activate Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
-                
-                // TODO we should not rely on this struct being the same as MSG_ITAG_DETECTED and it should probably be a new struct
-                msg.iTag.header.msgType = MSG_ITAG_CONFIG;
-                BaseType_t xReturned = xQueueSend(queueBTConnect, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //Don't wait if queue is full, just retry next time we scan the tag
-                if (xReturned)
-                {
-                  //Only mark active if it was possible to put in on the queue, if not it will just retry next time we scan the tag
-                  iTags[j].active = true;  //TODO tristate, falst->asking->true (only send one msg)
-                  //iTags[j].reset(); // will set active = true
-                }
-              }
+              break; // No need to check more TAGs if we got a match
             }
           }
           if (found == false) {
