@@ -32,24 +32,26 @@ static void DBsaveGlobalConfig();
 
 #define MAX_SAVED_LAPS 1000
 
-
 class Race {
   public:
-    Race()
+    Race() : 
+      fileName("vxoSM24H2023.json"),
+      name("VXO SM 24H"),
+      timeBasedRace(true),
+      maxTime(24),
+      distance(821),
+      laps(2),
+      blockNewLapTime(3*60),
+      updateCloserTime(30),
+      raceStartInTime(15),
+      raceOngoing(false),
+      raceStart(0)
     {
-      fileName = std::string("Revolution003.json");
-      name = std::string("Revolution Marathon");
-      distance = RACE_DISTANCE_TOTAL;
-      laps = RACE_LAPS;
       if(laps == 0) {  //TODO make this a compiler check
         laps = 1; // Should never be 0 but if it is lets fix it
       }
       // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
       blockNewLapTime = ((170*distance/laps)/1000);
-      updateCloserTime = 30;
-      raceStartInTime = RACE_COUNTDOWN;
-      raceOngoing=false;
-      raceStart=0;
     }
 
     void receive_ConfigMsg(msg_RaceConfig *raceConfig)
@@ -145,6 +147,10 @@ class Race {
     void setMaxTime(time_t inMaxTime) {maxTime=inMaxTime;}
     void setDistance(uint32_t inDist) {distance=inDist;}
     void setLaps(uint32_t inLaps) {laps=inLaps;}
+    void setBlockNewLapTime(time_t inTime) {blockNewLapTime=inTime;}
+    void setRaceStartInTime(time_t inTime) {raceStartInTime=inTime;}
+    void setUpdateCloserTime(time_t inTime) {updateCloserTime=inTime;}
+
     void setRaceStart(time_t inStart) {raceStart=inStart;}
     void setRaceOngoing(bool race) {raceOngoing=race;}
 
@@ -701,24 +707,39 @@ static void DBloadRace()
   }
   //ESP_LOGI(TAG,"fileformatversion=%s (OK)",version.c_str());
 
-
   std::string name = raceJson["racename"];
-  bool raceTimeBased = raceJson["raceTimeBased"];
-  time_t raceMaxTime = raceJson["raceMaxTime"];
-  uint32_t raceDist = raceJson["distance"];
+  bool raceTimeBased = raceJson["raceTimeBased"] | true;
+  time_t raceMaxTime = raceJson["raceMaxTime"] | 24;
+  uint32_t raceDist = raceJson["distance"]  | 821;
   uint32_t raceLaps = raceJson["laps"];
-  double raceLapDist = raceJson["lapdistance"];
+  double raceLapDist = raceJson["lapdistance"] | 821;
   uint32_t raceTagCount = raceJson["tags"];
+
+  time_t raceBlockNewLapTime = raceJson["raceBlockNewLapTime"] | 5*60;
+  time_t raceStartInTime = raceJson["raceStartInTime"] | 15;
+  time_t raceUpdateCloserTime = raceJson["raceUpdateCloserTime"] | 30;
+
+
   time_t raceStart = raceJson["start"];
-  bool raceOngoing = raceJson["raceOngoing"];
+  bool raceOngoing = raceJson["raceOngoing"] | false;
 
   theRace.setName(name);
   theRace.setTimeBasedRace(raceTimeBased);
   theRace.setMaxTime(raceMaxTime);
   theRace.setDistance(raceDist);
   theRace.setLaps(raceLaps);
+
+  theRace.setBlockNewLapTime(raceBlockNewLapTime);
+  theRace.setUpdateCloserTime(raceUpdateCloserTime);
+  theRace.setRaceStartInTime(raceStartInTime);
+
   theRace.setRaceStart(raceStart);
   theRace.setRaceOngoing(raceOngoing);
+  if (raceStart > rtc.getEpoch()) {
+    // If our clock is older the race jump to that time
+    rtc.setTime(raceStart);
+  }
+
 
   if ( std::abs(raceLapDist - theRace.getLapDistance()) > 1.0) {
     ESP_LOGE(TAG,"LoadRace ERROR lapdistance=%f != %f (calculated lap distance from dist:%d laps:%d) (NOK) Do nothing",raceLapDist,theRace.getLapDistance(),raceDist,raceLaps);
@@ -811,6 +832,12 @@ static void DBloadRace()
         }
         time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
         time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
+
+        if (lapLastSeen > rtc.getEpoch()) {
+          // If our clock is older the lapLastSeen jump to that time
+          rtc.setTime(lapLastSeen);
+        }
+
         //ESP_LOGI(TAG,"         lap[%4d] StartTime:%8d, lastSeen:%8d",lap,lapStart,lapLastSeen);
         if (lap==0) {
           iTags[i].participant.setCurrentLap(lapStart,lapLastSeen);
@@ -824,6 +851,7 @@ static void DBloadRace()
   uint64_t stop_time = micros();
   uint32_t tot_time = stop_time - start_time;
   ESP_LOGI(TAG,"Loaded race as %s time %d us", fileName.c_str(),tot_time );
+  delay(20);
   if (theRace.isRaceOngoing()) {
     // Load race was in started state
     ESP_LOGI(TAG,"Loaded race was started when saved");
@@ -834,8 +862,8 @@ static void DBloadRace()
 
 static void DBsaveRace()
 {
+  delay(20);
   uint64_t start_time = micros();
-
   DynamicJsonDocument raceJson(50000); // TODO verify with a maximum Tags/Laps file
 
   raceJson["Appname"] = "CrazyCapyTime";
@@ -848,6 +876,9 @@ static void DBsaveRace()
   raceJson["laps"] = theRace.getLaps();
   raceJson["lapdistance"] = theRace.getLapDistance();
   raceJson["tags"] = ITAG_COUNT;
+  raceJson["raceBlockNewLapTime"] = theRace.getBlockNewLapTime();
+  raceJson["raceUpdateCloserTime"] = theRace.getUpdateCloserTime();
+  raceJson["raceStartInTime"] = theRace.getRaceStartInTime();
   raceJson["start"] = theRace.getRaceStart();
   raceJson["raceOngoing"] = theRace.isRaceOngoing();
 
@@ -954,10 +985,12 @@ void vTaskRaceDB( void *pvParameters )
               //tm timeNow = rtc.getTimeStruct();
               time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
               uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
+              ESP_LOGI(TAG,"%s Connected Time: %s               timeSinceLastSeen: %d = difftime(newLapTime:%d, lastSeenSinceStart:%d) ", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen,newLapTime,lastSeenSinceStart);
 
+              ESP_LOGI(TAG,"%s Connected Time: %s Check new lap timeSinceLastSeen: %d > theRace.getBlockNewLapTime():%d ?", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen,theRace.getBlockNewLapTime());
               if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {                
                 // New Lap!
-                //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
+                ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
                 iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI); // Save RSSI
                 if(!iTags[j].participant.nextLap(newLapTime)) {
                   //TODO GUI popup ??
@@ -984,7 +1017,7 @@ void vTaskRaceDB( void *pvParameters )
                   }
                 }
                 time_t newLastSeenSinceLapStart = difftime(newLapTime, iTags[j].participant.getCurrentLapStart());
-                //ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
+                ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
               }
               autoSaveTainted = true;
