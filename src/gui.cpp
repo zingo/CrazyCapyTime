@@ -137,13 +137,22 @@ class guiRace {
                 textAreaConfigRaceBlockNewLapTime(nullptr),
                 textAreaConfigRaceUpdateCloserTime(nullptr),
                 textAreaConfigRaceRaceStartIn(nullptr),
-                tabGraph(nullptr)
+                tabGraph(nullptr),
+                currentUserHandleGFX(DEFAULT_PARTICIPANT), // TODO make this selectable in GUI //TODO save on disk
+                personalGoal(DEFAULT_PARTICIPANT_GOAL), //TODO save on disk
+                labelCurrentUserName(nullptr),
+                labelCurrentUserGoal(nullptr),
+                seriesGraphGoal(nullptr),
+                seriesGraphGoalFaster(nullptr),
+                seriesGraphGoalSlower(nullptr)
                 {}
 
     void receiveConfigRace(msg_RaceConfig *raceConfig);
     void sendConfigRace();
     void createGUITabConfig(lv_obj_t * parent);
     void updateGUITabRaceGraph();
+    void updateGUITabRaceGraphGoalLines();
+    void UpdateCurrentUserInfo(uint32_t handleGFX);
     time_t getRaceStart() { return raceStart;}
     void setRaceStart(time_t inRaceStart) { raceStart = inRaceStart;}
     uint32_t getDistance() { return distance;}
@@ -158,6 +167,10 @@ class guiRace {
     time_t getMaxTime();
     bool isDataValid() {return dataValid;}
     void setTabGraph(lv_obj_t *inTabGraph) {tabGraph=inTabGraph; createGUITabRaceGraph();}
+    uint32_t getMaxGraphLaps();
+    uint32_t getCurrentUserHandleGFX() {return currentUserHandleGFX;}
+    uint32_t getCurrentUserPersonalGoal() {return personalGoal;}
+    void setCurrentUserPersonalGoal(uint32_t goal);
   private:
     bool dataValid;
     time_t raceStart;
@@ -174,7 +187,13 @@ class guiRace {
     lv_obj_t * textAreaConfigRaceUpdateCloserTime = nullptr;
     lv_obj_t * textAreaConfigRaceRaceStartIn = nullptr;
     lv_obj_t * tabGraph = nullptr;
-
+    uint32_t currentUserHandleGFX;
+    uint32_t personalGoal;
+    lv_obj_t *labelCurrentUserName = nullptr;
+    lv_obj_t *labelCurrentUserGoal = nullptr;
+    lv_chart_series_t * seriesGraphGoal = nullptr;
+    lv_chart_series_t * seriesGraphGoalFaster = nullptr;
+    lv_chart_series_t * seriesGraphGoalSlower = nullptr;
     void createGUITabRaceGraph();
     //void createGUITabRSSI(lv_obj_t * parent);
 };
@@ -365,12 +384,84 @@ static void btnTagSub_event_cb(lv_event_t * e)
     }
 }
 
+static void btnCurrentUserAdd_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      uint32_t handleGFX = guiRace.getCurrentUserHandleGFX();
+      msg_RaceDB msg;
+      msg.UpdateParticipantLapCount.header.msgType = MSG_ITAG_UPDATE_USER_LAP_COUNT;
+      msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
+      msg.UpdateParticipantLapCount.handleGFX = handleGFX;
+      msg.UpdateParticipantLapCount.lapDiff = 1;
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
+      if (!xReturned) {
+        // it it fails let the user click again
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+                      msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      }
+    }
+}
+
+static void btnCurrentUserSub_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      uint32_t handleGFX = guiRace.getCurrentUserHandleGFX();
+      msg_RaceDB msg;
+      msg.UpdateParticipantLapCount.header.msgType = MSG_ITAG_UPDATE_USER_LAP_COUNT;
+      msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
+      msg.UpdateParticipantLapCount.handleGFX = handleGFX;
+      msg.UpdateParticipantLapCount.lapDiff = -1;
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
+      if (!xReturned) {
+        // it it fails let the user click again
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+                      msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
+      }
+    }
+}
+
+static void btnCurrentUserGoalAdd_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      uint32_t handleGFX = guiRace.getCurrentUserHandleGFX();
+      uint32_t goal = guiRace.getCurrentUserPersonalGoal();
+      goal+=2000;
+      guiRace.setCurrentUserPersonalGoal(goal);
+    }
+}
+
+static void btnCurrentUserGoalSub_event_cb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    //lv_obj_t * btn = lv_event_get_target(e);
+    if(code == LV_EVENT_SHORT_CLICKED) {
+      uint32_t handleGFX = guiRace.getCurrentUserHandleGFX();
+      uint32_t goal = guiRace.getCurrentUserPersonalGoal();
+      goal-=2000;
+      if(goal<2000) goal=2000;
+      guiRace.setCurrentUserPersonalGoal(goal);
+    }
+}
+
+
+
 #ifdef TESTCODE
 
 void startTestEndToEnd(std::string testname); //TODO move to header
 void stopTestEndToEnd(); //TODO move to header
 
 static const char * btnTest_map[] = {"Test24HFast", "Test24HLive", "\n",
+                                     "Test24HFastCont", "Test24HLiveCont", "\n",
                                      "StopTest", "StopTest", "StopTest", ""
                                 };
 
@@ -392,13 +483,9 @@ static void btnTest_event_cb(lv_event_t * e)
         else {
           stopTestEndToEnd();
         }
-
-
     }
 }
 #endif
-
-
 
 static void gfxRemoveUserFromRace(uint32_t handleGFX)
 {
@@ -557,7 +644,6 @@ static void gfxUpdateInRace(bool newInRace, uint32_t handleGFX)
 
 static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgParticipant, uint32_t handleGFX)
 {
-
   lv_obj_t * btn;
   lv_obj_t *label;
   lv_obj_t * panel1 = lv_obj_create(parent);
@@ -639,7 +725,7 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   lv_obj_add_style(labelBattery, &styleTagSmallText, 0);
   lv_obj_set_grid_cell(labelBattery, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-  // ------ Add/Subb lap (In case of error)
+  // ------ Add/Sub lap (In case of error)
   btn = lv_btn_create(panel1); 
   lv_obj_align_to(btn, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
   lv_obj_add_event_cb(btn, btnTagSub_event_cb, LV_EVENT_ALL, reinterpret_cast<void *>(handleGFX));
@@ -665,6 +751,8 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
 
   lv_chart_series_t * seriesLaps = lv_chart_add_series(chartLaps, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
   //lv_chart_series_t * seriesRSSI = lv_chart_add_series(chartRSSI, lv_color_hex(msgParticipant.color0), LV_CHART_AXIS_PRIMARY_Y);
+
+  guiRace.updateGUITabRaceGraphGoalLines();
 
   // All well so far, lets update the internal struct with the info.
   guiParticipants[handleGFX].handleDB = msgParticipant.handleDB;
@@ -704,6 +792,45 @@ void guiRace::createGUITabRaceGraph()
   lv_obj_set_style_pad_row(parent,5,0);
   lv_obj_set_style_pad_all(parent, 5,0);
 
+  ESP_LOGI(TAG,"createGUITabRaceGraph() Selected User Stuff");
+  lv_obj_t * selectedUser = lv_obj_create(parent);
+  lv_obj_set_flex_flow(selectedUser, LV_FLEX_FLOW_ROW);
+  lv_obj_set_size(selectedUser, LV_PCT(100),LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(selectedUser, 5,0);
+
+
+  // ------ Add/Sub lap (In case of error)
+  lv_obj_t * btn11 = lv_btn_create(selectedUser); 
+  //lv_obj_align_to(btn11, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn11, btnCurrentUserSub_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t * label11 = lv_label_create(btn11);
+  lv_obj_center(label11);
+  lv_obj_add_style(label11, &styleTagSmallText, 0);
+  lv_label_set_text(label11, LV_SYMBOL_MINUS );
+
+#if 0
+  labelCurrentUserLaps = lv_label_create(selectedUser);
+  lv_obj_add_style(labelCurrentUserLaps, &styleTagText, 0);
+  lv_label_set_text(labelCurrentUserLaps, "Laps: ---");
+#endif
+
+  // ------
+  lv_obj_t * btnpluss = lv_btn_create(selectedUser); 
+  //lv_obj_align_to(btnpluss, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btnpluss, btnCurrentUserAdd_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t * label2 = lv_label_create(btnpluss);
+  lv_obj_center(label2);
+  lv_obj_add_style(label2, &styleTagSmallText, 0);
+  lv_label_set_text(label2, LV_SYMBOL_PLUS );
+
+  labelCurrentUserName = lv_label_create(selectedUser);
+  lv_obj_add_style(labelCurrentUserName, &styleTagText, 0);
+  lv_label_set_text(labelCurrentUserName, "Zingo Info");
+
+  // --------- Graph
+
   ESP_LOGI(TAG,"createGUITabRaceGraph() Create graph!");
   chartLaps = lv_chart_create(parent);
   //lv_obj_align_to(chartLaps, parent, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -711,11 +838,147 @@ void guiRace::createGUITabRaceGraph()
   lv_obj_set_size(chartLaps, LV_PCT(90), LV_PCT(85));
   lv_chart_set_type(chartLaps, LV_CHART_TYPE_SCATTER);
   // Do not display points on the data
-  lv_obj_set_style_size(chartLaps, 0, LV_PART_INDICATOR);
+  lv_obj_set_style_size(chartLaps, 2, LV_PART_INDICATOR);
+  //lv_obj_set_style_line_width(chartLaps, 2, LV_PART_ITEMS); 
+
+
+
+  // Graph overlay 2
+  lv_obj_t * selectedUser2 = lv_obj_create(chartLaps);
+  lv_obj_set_flex_flow(selectedUser2, LV_FLEX_FLOW_ROW);
+  lv_obj_set_size(selectedUser2, LV_SIZE_CONTENT,LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(selectedUser2, 5,0);
+
+  lv_obj_add_flag(selectedUser2, LV_OBJ_FLAG_FLOATING);
+  lv_obj_align(selectedUser2,LV_ALIGN_BOTTOM_RIGHT, 0, -lv_obj_get_style_pad_right(chartLaps, LV_PART_MAIN));
+
+  lv_obj_t * btn12 = lv_btn_create(selectedUser2); 
+  //lv_obj_align_to(btn12, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btn12, btnCurrentUserGoalSub_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t * label12 = lv_label_create(btn12);
+  lv_obj_center(label12);
+  lv_obj_add_style(label12, &styleTagSmallText, 0);
+  lv_label_set_text(label12, LV_SYMBOL_MINUS );
+
+ // ------
+  lv_obj_t * btnpluss2 = lv_btn_create(selectedUser2); 
+  //lv_obj_align_to(btnpluss2, parent, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+  lv_obj_add_event_cb(btnpluss2, btnCurrentUserGoalAdd_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t * label22 = lv_label_create(btnpluss2);
+  lv_obj_center(label22);
+  lv_obj_add_style(label22, &styleTagSmallText, 0);
+  lv_label_set_text(label22, LV_SYMBOL_PLUS );
+
+  labelCurrentUserGoal = lv_label_create(selectedUser2);
+  lv_obj_add_style(labelCurrentUserGoal, &styleTagText, 0);
+  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %d km",personalGoal/1000);
+
 
   if(isDataValid()) {
     updateGUITabRaceGraph();
   }
+}
+
+void guiRace::setCurrentUserPersonalGoal(uint32_t goal)
+{
+  personalGoal = goal; 
+  updateGUITabRaceGraphGoalLines();
+  UpdateCurrentUserInfo(getCurrentUserHandleGFX());
+  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %d km",goal/1000);
+  if(isDataValid()) {
+    updateGUITabRaceGraph();
+  }
+}
+
+void guiRace::UpdateCurrentUserInfo(uint32_t handleGFX)
+{
+    // ---- Pace from start
+  uint32_t lapDist = getDistance();
+  if (!isTimeBasedRace()) {
+    uint32_t laps = getLaps();
+    if (laps<1) laps =1; //divisions protection
+    lapDist = lapDist / getLaps();
+  }
+
+  double dist = guiParticipants[handleGFX].laps * lapDist;
+  double timeUntilNow = guiParticipants[handleGFX].thisLapStart;
+
+  if (dist < 1) dist=1.0; //division protection            
+  uint32_t paceFromStartTotSeconds = timeUntilNow / (dist/1000.0);
+  uint32_t paceFromStartMin = paceFromStartTotSeconds / 60;
+  uint32_t paceFromStartSec = paceFromStartTotSeconds - (paceFromStartMin * 60);
+  
+  // ---- Current pace
+  // Just take pace from the last 4 passings (e.g. 3 laps)
+  static double distLap1=1;
+  static double timeLap1=1;
+  static double distLap2=2;
+  static double timeLap2=2;
+  static double distLap3=3;
+  static double timeLap3=3;
+  static double distLap4=4;
+  static double timeLap4=4;
+  timeLap1 = timeLap2;
+  timeLap2 = timeLap3;
+  timeLap3 = timeLap4;
+  timeLap4 = timeUntilNow;
+
+  distLap1 = distLap2;
+  distLap2 = distLap3;
+  distLap3 = distLap4;
+  distLap4 = dist;
+
+  double deltaTime= timeLap4 - timeLap1;
+  double deltaDist= distLap4 - distLap1;
+  if (deltaDist < 1) deltaDist=1.0; //division protection            
+  uint32_t paceNowTotSeconds = deltaTime / (deltaDist/1000.0);
+  uint32_t paceNowMin = paceNowTotSeconds / 60;
+  uint32_t paceNowSec = paceNowTotSeconds - (paceNowMin * 60);
+  
+  // ---- Needed pace rest of race to achive goal!
+
+  //Break left pace up in 2 parts, one for firt half goal, and one for the rest of the race 
+  double timeLeft;
+  double distLeft;
+  bool firstHalf=false;
+  // Adjust to first half if needed (if in first half AND first half goal has not been meet already)
+  if ((timeUntilNow < (getMaxTime()*60*60/2)) && (dist < (0.60 * getCurrentUserPersonalGoal()) ) ) {
+    firstHalf=true;
+    //halftime to 0.60 * getCurrentUserPersonalGoal()
+    //and after 12h guiRace.getCurrentUserPersonalGoal()
+    timeLeft = (getMaxTime()*60*60/2) - timeUntilNow;
+    distLeft = (0.60 * getCurrentUserPersonalGoal()) - dist;
+  }
+  else {
+    // 2:nd half, jsuts use rest up to goal
+    // Total race
+    timeLeft = (24*60*60) - timeUntilNow;
+    distLeft = getCurrentUserPersonalGoal() - dist;
+  }
+
+  if (distLeft < 1.0) distLeft=1.0; //division protection            
+  uint32_t paceLeftTotSeconds = timeLeft / (distLeft/1000.0);
+  uint32_t paceLeftMin = paceLeftTotSeconds / 60;
+  uint32_t paceLeftSec = paceLeftTotSeconds - (paceLeftMin * 60);
+
+  //ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------firstHalf:%d  msg.lastLapTime:%d < (guiRace.getMaxTime()*60*60/2) %d" ,firstHalf, msg.lastLapTime, (guiRace.getMaxTime()*60*60/2));
+  ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------lap:%3d -- %4.3f km -- Pace [%d:%02d, %d:%02d, %d:%02d] firstHalf:%d lapDist:%d guiParticipants[handleGFX].laps: %d" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec,firstHalf,lapDist,guiParticipants[handleGFX].laps);
+  lv_label_set_text_fmt(labelCurrentUserName,  "lap:%3d -- %4.3f km -- Pace [%d:%02d, %d:%02d, %d:%02d]" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec);
+}
+
+
+uint32_t guiRace::getMaxGraphLaps()
+{
+  return 300;
+/*  if (!isTimeBasedRace()) {
+    return getLaps();
+  }
+  else {
+    return 300; //TODO use 999, 300 should be enough for VXO24h for now so lets keep it safe and test more before going bananas
+  }
+*/
 }
 
 void guiRace::updateGUITabRaceGraph()
@@ -728,16 +991,14 @@ void guiRace::updateGUITabRaceGraph()
 
   bool timeBasedRace = isTimeBasedRace();
   time_t maxTime = getMaxTime();
-  uint32_t laps = getLaps();
+  uint32_t laps = getMaxGraphLaps();
   uint32_t raceDist = getDistance();
 
   if (!timeBasedRace) {
     maxTime +=1; // add some space for slow runners to still be visiable
-    raceDist += (raceDist/laps)*2; // add some laps if someone get feeling for one extra
-    laps += 2; // add some laps if someone get feeling for one extra
   }
   else {
-    laps=300; //TODO use 999, 300 should be enough for VXO24h for now so lets keep it safe and test more before going bananas
+    raceDist = 1.2 * getCurrentUserPersonalGoal();
   }
 
   if (!timeBasedRace) {
@@ -754,29 +1015,76 @@ void guiRace::updateGUITabRaceGraph()
     lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_PRIMARY_X, 20, 10, (maxTime/2)+1, 2, false, 25);
     lv_chart_set_axis_tick(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 20, 10, (maxTime/4)+1, 4, true, 150);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime*60*60);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, maxTime*10*1000);
-    //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, maxTime*60*60);
-    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, maxTime);
-    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d]",maxTime*60*60,maxTime*10*1000);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, raceDist);
+    //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, raceDist);
+    lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, raceDist/1000);
+    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d] maxLaps:%d",maxTime*60*60,raceDist,laps);
   }
 
   if (!timeBasedRace) {
-    // Save 2 points per lap, "Arrave" and "Leave", with long few laps you take a short refill break
-    lv_chart_set_point_count(chartLaps, (laps*2*ITAG_COUNT));
+    // Save 2 points per lap, "Arrive" and "Leave", with long few laps you take a short refill break
+    lv_chart_set_point_count(chartLaps, 5*(laps*2)+2); //add 2 to avoid crashes if we add one extra value
   }
   else {
-    // Save 1 point per lap, "Arrave" with sort laps you usually just pass by this make it use a lot less data in the graph
-    lv_chart_set_point_count(chartLaps, (laps*ITAG_COUNT));
+    // Save 1 point per lap, "Arrive" with sort laps you usually just pass by this make it use a lot less data in the graph
+    lv_chart_set_point_count(chartLaps, 5*laps+2); //add 2 to avoid crashes if we add one extra value
   }
+  updateGUITabRaceGraphGoalLines();
 }
+
+void guiRace::updateGUITabRaceGraphGoalLines()
+{
+#if 1
+  // Add goals TODO make dynamic or configuare per user
+  if (seriesGraphGoal!=nullptr) {
+    lv_chart_remove_series(chartLaps, seriesGraphGoal);
+    seriesGraphGoal=nullptr;
+  }
+  if (seriesGraphGoalFaster!=nullptr) {
+    lv_chart_remove_series(chartLaps, seriesGraphGoalFaster);
+    seriesGraphGoalFaster=nullptr;
+  }
+  if (seriesGraphGoalSlower!=nullptr) {
+    lv_chart_remove_series(chartLaps, seriesGraphGoalSlower);
+    seriesGraphGoalSlower=nullptr;
+  }
+
+  seriesGraphGoal = lv_chart_add_series(chartLaps, lv_color_hex(0xdddddd), LV_CHART_AXIS_PRIMARY_Y);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoal, 0, 0);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoal, 12*60*60, 0.60 * getCurrentUserPersonalGoal());
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoal, 24*60*60, getCurrentUserPersonalGoal());
+
+  seriesGraphGoalFaster = lv_chart_add_series(chartLaps, lv_color_hex(0xdddddd), LV_CHART_AXIS_PRIMARY_Y);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalFaster, 0, 0);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalFaster, 12*60*60, 1.1 * 0.60 * getCurrentUserPersonalGoal());
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalFaster, 24*60*60, 1.1 * getCurrentUserPersonalGoal());
+
+  seriesGraphGoalSlower = lv_chart_add_series(chartLaps, lv_color_hex(0xdddddd), LV_CHART_AXIS_PRIMARY_Y);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalSlower, 0, 0);
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalSlower, 12*60*60, 0.95 * 0.60 *getCurrentUserPersonalGoal());
+  lv_chart_set_next_value2(chartLaps, seriesGraphGoalSlower, 24*60*60, 0.95 * getCurrentUserPersonalGoal());
+#endif
+
+}
+
 
 // Update Graphs 
 // TODO handle subtraction of lap
 
 static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
+  if(lap > guiRace.getMaxGraphLaps()) {
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR above maxLaps:%d DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
+    return;
+  }
   if (!guiRace.isTimeBasedRace()) {
     ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    
+    if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lv_chart_get_point_count(chartLaps));
+      return;
+    }
+
     guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = time;
     guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = dist;
     guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
@@ -786,6 +1094,12 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
     //time=time/100;
     //dist=dist/100;
     ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased only save arrive)",handleGFX,lap,time,dist);
+
+    if(lap > lv_chart_get_point_count(chartLaps)) {
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
+      return;
+    }
+
     guiParticipants[handleGFX].seriesLaps->x_points[lap] = time;
     guiParticipants[handleGFX].seriesLaps->y_points[lap] = dist;
   }
@@ -794,8 +1108,16 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
 
 static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
+  if(lap > guiRace.getMaxGraphLaps()) {
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR above maxLaps:%d DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
+    return;
+  }
   if (!guiRace.isTimeBasedRace()) {
     ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
+      return;
+    }
     guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
     guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = dist;
     lv_chart_refresh(chartLaps); //Required after direct set
@@ -804,6 +1126,10 @@ static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, 
     //time=time/100;
     //dist=dist/100;
     ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased do nothing)",handleGFX,lap,time,dist);
+    if(lap > lv_chart_get_point_count(chartLaps)) {
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lv_chart_get_point_count(chartLaps));
+      return;
+    }
     //TODO or do nothing here ????
     //guiParticipants[handleGFX].seriesLaps->x_points[lap] = time;
     //guiParticipants[handleGFX].seriesLaps->y_points[lap] = dist;
@@ -843,33 +1169,50 @@ static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
 {
   ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d)",handleGFX,fromLap);
 
-  for(uint32_t lap = fromLap; lap <= DRAW_MAX_LAPS_IN_CHART; lap++)
+  uint32_t maxLaps = guiRace.getMaxGraphLaps();
+  if (fromLap > maxLaps) {
+    ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) ERROR above maxLaps:%d DO NOTHING",handleGFX,fromLap,maxLaps);
+    return;
+  }
+  for(uint32_t lap = fromLap; lap <= maxLaps; lap++)
   {
     if (!guiRace.isTimeBasedRace()) {
+      if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
+        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%d, fromLap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
+        return;
+      }
       guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->y_points[2*lap] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->y_points[2*lap+1] = LV_CHART_POINT_NONE;
     }
     else {
+      if(lap > lv_chart_get_point_count(chartLaps)) {
+        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%d, fromLap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
+        return;
+      }
       guiParticipants[handleGFX].seriesLaps->x_points[lap] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->y_points[lap] = LV_CHART_POINT_NONE;
     }
   }
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) lv_chart_refresh()",handleGFX,fromLap);
   lv_chart_refresh(chartLaps); //Required after direct set
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) Done",handleGFX,fromLap);
 }
 
 // Update Race info (Laps/Dist)
 static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 {
   uint32_t handleGFX = msg.handleGFX;
+  bool newLap=false;
 
     gfxUpdateInRace(msg.inRace, handleGFX);
 
-    //ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d",guiParticipants[handleGFX].laps,msg.laps);
+    ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d dist:%d",guiParticipants[handleGFX].laps,msg.laps,msg.distance);
 
     if (msg.laps > guiParticipants[handleGFX].laps) {
       // new lap
+      newLap=true;
       gfxUpdateParticipantChartNewLap(handleGFX, msg.laps, msg.lastLapTime, msg.distance);
     }
     else if (msg.laps < guiParticipants[handleGFX].laps) {
@@ -929,6 +1272,13 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
       lv_label_set_text(guiParticipants[handleGFX].labelRaceConnectionStatus, conn.c_str());
     }
     //gfxUpdateParticipantChartRSSI(handleGFX,msg.connectionStatus);
+
+    // If this is selected User update that field in the graph
+#if 1
+    if (newLap && guiRace.getCurrentUserHandleGFX() == handleGFX) {
+      guiRace.UpdateCurrentUserInfo(handleGFX);
+    }
+#endif
 }
 
 static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
@@ -945,7 +1295,6 @@ static void gfxUpdateParticipantStatus(msg_UpdateParticipantStatus msg)
   else if (msg.connectionStatus == 0)
   {
     conn = std::string("");
-
   } else {
     // if msg.connectionStatus < 0 (as it should) it is the RSSI value of the tag
     conn = std::string(LV_SYMBOL_EYE_OPEN);
@@ -1054,6 +1403,8 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   else {
     lapsDistances = raceConfig->distance / laps;
   }
+
+  setDistance(raceConfig->distance);
 
   // Genaral info page
   lv_label_set_text(globalLabelRaceName, name.c_str());
@@ -1613,9 +1964,8 @@ void createGUI(void)
 
   tabRace = lv_tabview_add_tab(tabView, "Race"); 
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
-  lv_obj_t * tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_IMAGE );
-  //lv_obj_t * tab4 = lv_tabview_add_tab(tabView, LV_SYMBOL_WIFI );
-  lv_obj_t * tabConf = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
+  lv_obj_t *tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_EYE_OPEN );
+  lv_obj_t *tabConf = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
@@ -1653,13 +2003,14 @@ void loopHandlLVGL()
       switch(msg.header.msgType) {
         case MSG_GFX_TIMER:
         {
-          static unsigned long lastTimeUpdate = 356*24*60*60; //start on something we will never match like 1971
+          lv_timer_handler();
+
+          static unsigned long lastTimeUpdate = 0;
           unsigned long now = rtc.getEpoch();
           if (lastTimeUpdate != now) {
             lastTimeUpdate = now;
             updateGUITime();
           }
-          lv_timer_handler();
           // Done! No response on this msg
           break;        
         }
@@ -1788,9 +2139,9 @@ void vTaskLVGL( void *pvParameters )
 
   ESP_LOGI(TAG, "Setup GFX");
   
-  int32_t prefer_speed = 16000000; // MAKERFAB_800x480
+  int32_t prefer_speed = 14000000; // MAKERFAB_800x480 16000000
   if (HW_Platform == HWPlatform::Sunton_800x480 ) {
-    // SUNTON_800x480
+    // SUNTON_800x480 14000000
     prefer_speed = 14000000;
   }
 
@@ -1900,7 +2251,7 @@ void initLVGL()
     esp_restart();
   }
 
-  TimerHandle_t timerHandle = xTimerCreate("GUITimer", pdMS_TO_TICKS(100),pdTRUE, (void *) 0, vTaskGUITimer);
+  TimerHandle_t timerHandle = xTimerCreate("GUITimer", pdMS_TO_TICKS(200),pdTRUE, (void *) 0, vTaskGUITimer);
   if( timerHandle == NULL ) {
     ESP_LOGE(TAG,"FATAL ERROR: xTimerCreate(GUITimer,...) Failed");
     ESP_LOGE(TAG,"----- esp_restart() -----");

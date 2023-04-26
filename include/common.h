@@ -25,6 +25,12 @@ extern bool raceOngoing;
 #define TASK_RACEDB_STACK (70*1024)
 #define TASK_GUI_STACK (90*1024)
 
+// The participant to show for goal in the graph
+// 5 = ZINGO
+#define DEFAULT_PARTICIPANT 5
+// The participant the goal
+#define DEFAULT_PARTICIPANT_GOAL (170*1000)
+
 extern TaskHandle_t xHandleBT;
 extern TaskHandle_t xHandleRaceDB;
 extern TaskHandle_t xHandleGUI;
