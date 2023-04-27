@@ -145,7 +145,8 @@ class guiRace {
                 labelCurrentUserGoal(nullptr),
                 seriesGraphGoal(nullptr),
                 seriesGraphGoalFaster(nullptr),
-                seriesGraphGoalSlower(nullptr)
+                seriesGraphGoalSlower(nullptr),
+                selectedUser(nullptr)
                 {}
 
     void receiveConfigRace(msg_RaceConfig *raceConfig);
@@ -196,6 +197,7 @@ class guiRace {
     lv_chart_series_t * seriesGraphGoal = nullptr;
     lv_chart_series_t * seriesGraphGoalFaster = nullptr;
     lv_chart_series_t * seriesGraphGoalSlower = nullptr;
+    lv_obj_t * selectedUser = nullptr;;
     void createGUITabRaceGraph();
     //void createGUITabRSSI(lv_obj_t * parent);
 };
@@ -793,11 +795,11 @@ void guiRace::createGUITabRaceGraph()
   lv_obj_set_style_pad_all(parent, 5,0);
 
   ESP_LOGI(TAG,"createGUITabRaceGraph() Selected User Stuff");
-  lv_obj_t * selectedUser = lv_obj_create(parent);
+  selectedUser = lv_obj_create(parent);
   lv_obj_set_flex_flow(selectedUser, LV_FLEX_FLOW_ROW);
   lv_obj_set_size(selectedUser, LV_PCT(100),LV_SIZE_CONTENT);
   lv_obj_set_style_pad_all(selectedUser, 5,0);
-
+  lv_obj_set_style_bg_color(selectedUser, lv_palette_main(LV_PALETTE_GREEN), 0);
 
   // ------ Add/Sub lap (In case of error)
   lv_obj_t * btn11 = lv_btn_create(selectedUser); 
@@ -952,7 +954,7 @@ void guiRace::UpdateCurrentUserInfo(uint32_t handleGFX)
     distLeft = (0.60 * getCurrentUserPersonalGoal()) - dist;
   }
   else {
-    // 2:nd half, jsuts use rest up to goal
+    // 2:nd half, just use rest up to goal
     // Total race
     timeLeft = (24*60*60) - timeUntilNow;
     distLeft = getCurrentUserPersonalGoal() - dist;
@@ -962,6 +964,15 @@ void guiRace::UpdateCurrentUserInfo(uint32_t handleGFX)
   uint32_t paceLeftTotSeconds = timeLeft / (distLeft/1000.0);
   uint32_t paceLeftMin = paceLeftTotSeconds / 60;
   uint32_t paceLeftSec = paceLeftTotSeconds - (paceLeftMin * 60);
+
+  if (paceNowTotSeconds < paceLeftTotSeconds ) {
+    // Current pace is faster then what is needed
+    lv_obj_set_style_bg_color(selectedUser, lv_palette_main(LV_PALETTE_GREEN), 0);
+  }
+  else {
+    // Current pace is slower then what is needed
+    lv_obj_set_style_bg_color(selectedUser, lv_palette_main(LV_PALETTE_RED), 0);
+  }
 
   //ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------firstHalf:%d  msg.lastLapTime:%d < (guiRace.getMaxTime()*60*60/2) %d" ,firstHalf, msg.lastLapTime, (guiRace.getMaxTime()*60*60/2));
   ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------lap:%3d -- %4.3f km -- Pace [%d:%02d, %d:%02d, %d:%02d] firstHalf:%d lapDist:%d guiParticipants[handleGFX].laps: %d" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec,firstHalf,lapDist,guiParticipants[handleGFX].laps);
