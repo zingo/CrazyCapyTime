@@ -165,6 +165,7 @@ class guiRace {
     bool isCheckBoxTimeBased(lv_obj_t *cb) {return cb==textAreaConfigRaceTimebased;}
     bool isTimeBasedRace() {return lv_obj_get_state(textAreaConfigRaceTimebased) & LV_STATE_CHECKED;}
     time_t getMaxTime();
+    time_t getRaceStartCountdown();
     bool isDataValid() {return dataValid;}
     void setTabGraph(lv_obj_t *inTabGraph) {tabGraph=inTabGraph; createGUITabRaceGraph();}
     uint32_t getMaxGraphLaps();
@@ -213,7 +214,7 @@ static void btnTime_event_cb(lv_event_t * e)
         {
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
-          startRaceCountdown();  //TODO should be signal
+          startRaceCountdown(guiRace.getRaceStartCountdown());  //TODO should be signal
           lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
           gfxClearAllParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
@@ -460,7 +461,7 @@ void stopTestEndToEnd(); //TODO move to header
 
 static const char * btnTest_map[] = {"Test24HFast", "Test24HLive", "\n",
                                      "Test24HFastCont", "Test24HLiveCont", "\n",
-                                     "ResetRTCfromHW", "StopTest", "StopTest", ""
+                                     "ResetRTCfromHW", "TestSetup24H", "StopTest", ""
                                 };
 
 static void btnTest_event_cb(lv_event_t * e)
@@ -1436,6 +1437,12 @@ time_t guiRace::getMaxTime()
 {
   time_t maxTime = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceMaxTime)));
   return maxTime;
+}
+
+time_t guiRace::getRaceStartCountdown()
+{
+  time_t thetime = std::stoi( std::string(lv_textarea_get_text(textAreaConfigRaceRaceStartIn)));
+  return thetime;
 }
 
 void guiRace::sendConfigRace()

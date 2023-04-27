@@ -38,12 +38,15 @@ enum class EndToEndTest : uint32_t
     Test24HFastCont,
     Test24HLiveCont,
     ResetRTCfromHW,
+    TestSetup24H,
     StopTest
 };
 
 static void Test24H(enum class EndToEndTest testEndToEnd);
 static void Test24HContinue(enum class EndToEndTest testEndToEnd);
 static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd);
+static void TestSetup24H(enum class EndToEndTest testEndToEnd);
+
 
 enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HFast") return EndToEndTest::Test24HFast;
@@ -51,6 +54,7 @@ enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HFastCont") return EndToEndTest::Test24HFastCont;
     if (inString == "Test24HLiveCont") return EndToEndTest::Test24HLiveCont;
     if (inString == "ResetRTCfromHW") return EndToEndTest::ResetRTCfromHW;
+    if (inString == "TestSetup24H") return EndToEndTest::TestSetup24H;
     if (inString == "StopTest") return EndToEndTest::StopTest;
     return EndToEndTest::StopTest;
 }
@@ -61,6 +65,7 @@ std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFastCont) return std::string("Test24HFastCont");
     if (enu == EndToEndTest::Test24HLiveCont) return std::string("Test24HLiveCont");
     if (enu == EndToEndTest::ResetRTCfromHW) return std::string("ResetRTCfromHW");
+    if (enu == EndToEndTest::TestSetup24H) return std::string("TestSetup24H");
     if (enu == EndToEndTest::StopTest) return std::string("StopTest");
     return std::string("StopTest");
 }
@@ -71,6 +76,7 @@ void executeEndToEndTest(enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFastCont) return Test24HContinue(enu);
     if (enu == EndToEndTest::Test24HLiveCont) return Test24HContinue(enu);
     if (enu == EndToEndTest::ResetRTCfromHW) return ResetRTCfromHW(enu);
+    if (enu == EndToEndTest::TestSetup24H) return TestSetup24H(enu);
     if (enu == EndToEndTest::StopTest) return;
     return;
 }
@@ -190,7 +196,7 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
 
   // Start race
   ESP_LOGI(TAG,"EndToEnd Test: %s > START RACE\n", EndToEndTestEnum2String(testEndToEnd).c_str());
-  startRaceCountdown();
+  startRaceCountdown(startIn);
 
   ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR RACE COUTNDOWN +2s: %d\n", EndToEndTestEnum2String(testEndToEnd).c_str(),startIn+2);
   delay((startIn+2)*1000); 
@@ -239,13 +245,6 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
   }
 }
 
-void initRTC();
-
-static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd)
-{
-  initRTC();
-}
-
 static void Test24HContinue(enum class EndToEndTest testEndToEnd)
 {
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
@@ -262,7 +261,7 @@ static void Test24HContinue(enum class EndToEndTest testEndToEnd)
   uint32_t wantedLaps=(wantedDist/lapDist)+1;
   time_t AvgLapTime = 24*60*60/wantedLaps; //blockNewLapTime+2;
 
-  ESP_LOGI(TAG,"EndToEnd Test: %s > CONTINUE 24H Race, LapDist:%d wantedDist:%d wantedLaps:%d -> AvgLapTime:%d (blockedTime:%d)\n", EndToEndTestEnum2String(testEndToEnd).c_str(),lapDist,wantedDist,wantedLaps,AvgLapTime,blockNewLapTime);
+  ESP_LOGI(TAG,"EndToEnd Test: %s > CONTINUE 24H Race, LapDist:%d wantedDist:%d wantedLaps:%d -> AvgLapTime:%d (blockedTime:%d)", EndToEndTestEnum2String(testEndToEnd).c_str(),lapDist,wantedDist,wantedLaps,AvgLapTime,blockNewLapTime);
 
 
   // Setup a iTag
@@ -277,7 +276,7 @@ static void Test24HContinue(enum class EndToEndTest testEndToEnd)
     thisLapTime = (thisLapTime - 60 ) + rand() % 120; // Time is a bit random +-60s 
     if(thisLapTime < (blockNewLapTime+2)) thisLapTime = (blockNewLapTime+2);
 
-    ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR LAP %d (BLOCK: %d) \n", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime, blockNewLapTime);
+    ESP_LOGI(TAG,"EndToEnd Test: %s > WAIT FOR LAP %d (BLOCK: %d)", EndToEndTestEnum2String(testEndToEnd).c_str(),thisLapTime, blockNewLapTime);
 
 
     if (speedupWithTimeJumps(testEndToEnd)) {
@@ -316,7 +315,98 @@ static void Test24HContinue(enum class EndToEndTest testEndToEnd)
   }
 }
 
+void initRTC();
 
+static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd)
+{
+  initRTC();
+}
+
+
+static time_t convertToEpoch(int yr, int mt, int dy, int hr, int mn, int sc )
+{
+  struct tm t = {0};        // Initalize to all 0's
+  t.tm_year = yr - 1900;    // This is year-1900, so 121 = 2021
+  t.tm_mon = mt - 1;
+  t.tm_mday = dy;
+  t.tm_hour = hr;
+  t.tm_min = mn;
+  t.tm_sec = sc;
+  time_t timeSinceEpoch = mktime(&t);
+  ESP_LOGI(TAG,"EndToEnd Test:  > TIME RACE Start:%d",timeSinceEpoch);
+  delay(100);
+  return timeSinceEpoch;
+}
+
+static time_t secondsTo(int yr, int mt, int dy, int hr, int mn, int sc )
+{
+  time_t timeSinceEpoch = convertToEpoch(yr, mt, dy, hr, mn, sc );
+  time_t now = rtc.getEpoch();
+  if (now < timeSinceEpoch) {
+    time_t secLeft = timeSinceEpoch - now;
+    ESP_LOGI(TAG,"EndToEnd Test:  > TIME RACE diff from now: %d",secLeft);
+    delay(100);
+    return secLeft;
+  }
+  return 0;
+}
+
+
+static void TestSetup24H(enum class EndToEndTest testEndToEnd)
+{
+
+  initRTC();
+
+  uint32_t lapDist = 821; //meter
+  // Max speed is 2,83min/km (or 170s/km e.g. Marathon on 2h) on the lap, this is used to not count a new lap in less time then this
+  time_t blockNewLapTime = ((170*lapDist)/1000); //seconds
+
+  // seconds to Race start:
+
+
+  time_t raceStartCountdown = secondsTo(2023,04,29,11,00,00);
+//  time_t raceStartCountdown = secondsTo(2023,04,27,2,32,00);
+  ESP_LOGI(TAG,"EndToEnd Test:  > TIME RACE diff from now: %d",raceStartCountdown);
+  ESP_LOGI(TAG,"EndToEnd Test: %s > 24H Race, LapDist:%d (blockedTime:%d) Time to start: %d s", EndToEndTestEnum2String(testEndToEnd).c_str(),lapDist,blockNewLapTime,raceStartCountdown);
+  delay(100);
+  // Setup a race
+  ESP_LOGI(TAG,"EndToEnd Test: %s > SETUP RACE\n", EndToEndTestEnum2String(testEndToEnd).c_str());
+  delay(100);
+  {
+//    std::string configRaceFileName(EndToEndTestEnum2String(testEndToEnd).c_str());
+//    std::string configRaceName(EndToEndTestEnum2String(testEndToEnd).c_str());
+
+
+    std::string configRaceFileName("VXO_SM24H_2023.json");
+    std::string configRaceName("VXO_SM24H_2023");
+
+    msg_RaceDB msg;
+    msg.Broadcast.RaceConfig.header.msgType = MSG_RACE_CONFIG;
+    size_t len = configRaceFileName.copy(msg.Broadcast.RaceConfig.fileName, PARTICIPANT_NAME_LENGTH);
+    msg.Broadcast.RaceConfig.fileName[len] = '\0';
+    len = configRaceName.copy(msg.Broadcast.RaceConfig.name, PARTICIPANT_NAME_LENGTH);
+    msg.Broadcast.RaceConfig.name[len] = '\0';
+    msg.Broadcast.RaceConfig.timeBasedRace = true;
+    msg.Broadcast.RaceConfig.maxTime = 24;
+    msg.Broadcast.RaceConfig.distance = lapDist;
+    msg.Broadcast.RaceConfig.laps = 2; //NA when timeBasedRace = true 
+    msg.Broadcast.RaceConfig.blockNewLapTime = blockNewLapTime;
+    msg.Broadcast.RaceConfig.updateCloserTime = 30;
+    msg.Broadcast.RaceConfig.raceStartInTime = raceStartCountdown;
+
+    ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%d distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+          msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
+          msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
+
+    BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
+    if (!xReturned) {
+      // it it fails let the user click again
+      ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
+    }
+  }
+  delay(100);
+  startRaceCountdown(raceStartCountdown);
+}
 
 
 void vTaskTestEndToEnd( void *pvParameters )

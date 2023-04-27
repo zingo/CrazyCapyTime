@@ -164,12 +164,12 @@ static void BroadcastRaceStop()
   xQueueSend(queueGFX, (void*)&msgGFX, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 }
 
-void startRaceCountdown()
+void startRaceCountdown(time_t countdownTime)
 {
-  ESP_LOGI(TAG,"================== startRaceCountdown() ================== ");
+  ESP_LOGI(TAG,"================== startRaceCountdown(%d) ================== ",countdownTime);
   unsigned long now = rtc.getEpoch();
   ESP_LOGI(TAG,"startRaceCountdown()");
-  raceStartIn = RACE_COUNTDOWN; //seconds
+  raceStartIn = countdownTime; //seconds
   raceStartInEpoch = now + raceStartIn;
   raceOngoing = false;
 

@@ -54,7 +54,7 @@ void saveRace(); // Send signal to save race
 void showHeapInfo(void);
 
 // TODO move below to signals to remove access to global variables
-void startRaceCountdown();
+void startRaceCountdown(time_t countDownValue);
 void continueRace(time_t raceStartTime);
 void stopRace();
 

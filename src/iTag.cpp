@@ -43,7 +43,7 @@ class Race {
       laps(2),
       blockNewLapTime(3*60),
       updateCloserTime(30),
-      raceStartInTime(15),
+      raceStartInTime(RACE_COUNTDOWN),
       raceOngoing(false),
       raceStart(0)
     {
