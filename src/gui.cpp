@@ -87,6 +87,7 @@ static lv_obj_t *globalLabelRaceTime = nullptr;
 
 static lv_obj_t *tabRace = nullptr;
 static lv_obj_t *tabParticipants = nullptr;
+lv_obj_t *tabGraph  = nullptr;
 static lv_obj_t *chartLaps = nullptr;
 //static lv_obj_t *chartRSSI = nullptr;
 
@@ -215,7 +216,7 @@ static void btnTime_event_cb(lv_event_t * e)
           //lv_obj_t * label = lv_obj_get_child(btn, 0);
           //lv_label_set_text_fmt(label, "Race Starts soon");
           startRaceCountdown(guiRace.getRaceStartCountdown());  //TODO should be signal
-          lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
+          lv_obj_scroll_to_view_recursive(tabGraph, LV_ANIM_ON);
           gfxClearAllParticipantData(); // TODO should probably be triggreded from RaceDB when it is cleared
         }
     }
@@ -232,7 +233,7 @@ static void btnTime_event_cb(lv_event_t * e)
         raceOngoing = true;
         lv_obj_t * label = lv_obj_get_child(btn, 0);
         lv_label_set_text_fmt(label, "Race continued!");
-        lv_obj_scroll_to_view_recursive(tabRace, LV_ANIM_ON);
+        lv_obj_scroll_to_view_recursive(tabGraph, LV_ANIM_ON);
       }
     }
 }
@@ -1969,13 +1970,15 @@ void createGUI(void)
 
   tabRace = lv_tabview_add_tab(tabView, "Race"); 
   tabParticipants = lv_tabview_add_tab(tabView, LV_SYMBOL_LIST );
-  lv_obj_t *tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_EYE_OPEN );
+  tabGraph = lv_tabview_add_tab(tabView, LV_SYMBOL_EYE_OPEN );
   lv_obj_t *tabConf = lv_tabview_add_tab(tabView, LV_SYMBOL_EDIT );
 
   createGUITabRace(tabRace);
   createGUITabParticipant(tabParticipants);
   guiRace.setTabGraph(tabGraph); // Will be re-configurated later with when we get the race config msg
   guiRace.createGUITabConfig(tabConf);
+
+  lv_obj_scroll_to_view_recursive(tabGraph, LV_ANIM_ON);
 }
 
 void updateGUITime()
