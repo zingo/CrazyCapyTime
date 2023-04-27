@@ -1275,7 +1275,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 
     // If this is selected User update that field in the graph
 #if 1
-    if (newLap && guiRace.getCurrentUserHandleGFX() == handleGFX) {
+    if (newLap && raceOngoing && guiRace.getCurrentUserHandleGFX() == handleGFX) {
       guiRace.UpdateCurrentUserInfo(handleGFX);
     }
 #endif
