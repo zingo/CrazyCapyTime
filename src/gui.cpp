@@ -463,8 +463,9 @@ void startTestEndToEnd(std::string testname); //TODO move to header
 void stopTestEndToEnd(); //TODO move to header
 
 static const char * btnTest_map[] = {"Test24HFast", "Test24HLive", "\n",
-                                     "Test24HFastCont", "Test24HLiveCont", "\n",
-                                     "ResetRTCfromHW", "TestSetup24H", "StopTest", ""
+                                     "Test24HFastCont", "Test24HLiveCont","\n",
+                                     "ResetRTCfromHW", "TestSetup24H", "\n",
+                                     "SetNTPTimeTest", "StopTest", ""
                                 };
 
 static void btnTest_event_cb(lv_event_t * e)

@@ -94,6 +94,15 @@ void initRTC()
   ESP_LOGE(TAG,"Time of boot: %s\n", rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
 }
 
+void setTimetoHWRTC(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec)
+{
+  DateTime dateAt( year,  month,  day,  hour, min,  sec);
+  rtcHW.adjust(dateAt);
+  DateTime now = rtcHW.now();
+  rtc.setTime(now.unixtime());
+}
+
+
 
 void initMessageQueues()
 {
@@ -216,7 +225,7 @@ void saveRace()
   msg_RaceDB msg;
   msg.SaveRace.header.msgType = MSG_ITAG_SAVE_RACE;
   //ESP_LOGI(TAG,"Send: MSG_ITAG_SAVE_RACE MSG:0x%x handleDB:0x%08x", msg.SaveRace.header.msgType);
-  BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  
+  xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  
 }
 
 void showHeapInfo()
@@ -322,7 +331,7 @@ void setup()
 {
   raceStartIn = 0;
   raceOngoing = false;
-  //delay(1000);
+  delay(1000);
   Serial.begin(115200);
   ESP_LOGI(TAG, "Crazy Capy Time setup");
 
@@ -341,8 +350,6 @@ void setup()
 
 }
 
-
-
 void loop()
 {
   unsigned long now = rtc.getEpoch();
@@ -359,7 +366,6 @@ void loop()
       raceStartIn = raceStartInEpoch - now;
     }
   }
-
 
   static unsigned long lastTimeUpdate = 0;
   if ((lastTimeUpdate+5*60) <= now) { //once per 5 min

@@ -27,6 +27,9 @@
 #include "common.h"
 #include "messages.h"
 
+#include <WiFi.h>
+#include "time.h"
+
 #define TAG "TestEndToEnd"
 
 static TaskHandle_t xHandleTestEndToEnd = nullptr;
@@ -39,6 +42,7 @@ enum class EndToEndTest : uint32_t
     Test24HLiveCont,
     ResetRTCfromHW,
     TestSetup24H,
+    SetNTPTimeTest,
     StopTest
 };
 
@@ -46,6 +50,8 @@ static void Test24H(enum class EndToEndTest testEndToEnd);
 static void Test24HContinue(enum class EndToEndTest testEndToEnd);
 static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd);
 static void TestSetup24H(enum class EndToEndTest testEndToEnd);
+static void SetNTPTimeTest(enum class EndToEndTest testEndToEnd);
+
 
 
 enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
@@ -55,6 +61,7 @@ enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HLiveCont") return EndToEndTest::Test24HLiveCont;
     if (inString == "ResetRTCfromHW") return EndToEndTest::ResetRTCfromHW;
     if (inString == "TestSetup24H") return EndToEndTest::TestSetup24H;
+    if (inString == "SetNTPTimeTest") return EndToEndTest::SetNTPTimeTest;
     if (inString == "StopTest") return EndToEndTest::StopTest;
     return EndToEndTest::StopTest;
 }
@@ -66,6 +73,7 @@ std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HLiveCont) return std::string("Test24HLiveCont");
     if (enu == EndToEndTest::ResetRTCfromHW) return std::string("ResetRTCfromHW");
     if (enu == EndToEndTest::TestSetup24H) return std::string("TestSetup24H");
+    if (enu == EndToEndTest::SetNTPTimeTest) return std::string("SetNTPTimeTest");
     if (enu == EndToEndTest::StopTest) return std::string("StopTest");
     return std::string("StopTest");
 }
@@ -77,6 +85,7 @@ void executeEndToEndTest(enum class EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HLiveCont) return Test24HContinue(enu);
     if (enu == EndToEndTest::ResetRTCfromHW) return ResetRTCfromHW(enu);
     if (enu == EndToEndTest::TestSetup24H) return TestSetup24H(enu);
+    if (enu == EndToEndTest::SetNTPTimeTest) return SetNTPTimeTest(enu);
     if (enu == EndToEndTest::StopTest) return;
     return;
 }
@@ -322,7 +331,6 @@ static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd)
   initRTC();
 }
 
-
 static time_t convertToEpoch(int yr, int mt, int dy, int hr, int mn, int sc )
 {
   struct tm t = {0};        // Initalize to all 0's
@@ -349,6 +357,43 @@ static time_t secondsTo(int yr, int mt, int dy, int hr, int mn, int sc )
     return secLeft;
   }
   return 0;
+}
+
+static void SetNTPTimeTest(enum class EndToEndTest testEndToEnd)
+{
+#if 0
+  // Replace with your network credentials
+  const char* ssid     = "MrAndersen";
+  const char* password = "Hamburgare";
+
+  const char* ntpServer = "pool.ntp.org";
+  const long  gmtOffset_sec = 3600 * 1;
+  const int   daylightOffset_sec = 3600 * 0;
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    ESP_LOGI(TAG,"wifi,");
+    delay(100);
+  }
+
+  ESP_LOGI(TAG,"EndToEnd Test: %s Connected to the WiFi network", EndToEndTestEnum2String(testEndToEnd).c_str());
+  ESP_LOGI(TAG,"EndToEnd Test: %s Local ESP32 IP: %s", EndToEndTestEnum2String(testEndToEnd).c_str(), WiFi.localIP());
+
+  // Init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  //printLocalTime();
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    ESP_LOGI(TAG,"EndToEnd Test: %s Failed to obtain time",, EndToEndTestEnum2String(testEndToEnd).c_str());
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+
+    //disconnect WiFi as it's no longer needed
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+#endif
+  setTimetoHWRTC(2023,04,28,10,34,0);
+
 }
 
 

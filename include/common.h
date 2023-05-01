@@ -57,7 +57,7 @@ void showHeapInfo(void);
 void startRaceCountdown(time_t countDownValue);
 void continueRace(time_t raceStartTime);
 void stopRace();
-
+void setTimetoHWRTC(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
 
 enum class HWPlatform : uint8_t
 {
