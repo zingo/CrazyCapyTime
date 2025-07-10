@@ -1,5 +1,10 @@
 #include <NimBLEDevice.h>
 #include "bluetooth.h"
+
+#include <string>
+
+#include <NimBLEDevice.h>
+
 #include "common.h"
 #include "messages.h"
 
@@ -35,10 +40,10 @@ static bool BTupdateBattery( NimBLEClient* client, msg_iTagDetected &msg_iTag) {
       if (remoteCharacteristic) {
         // Read the value of the characteristic.
         if(remoteCharacteristic->canRead()) {
-          int8_t bat = remoteCharacteristic->readUInt8();
+          uint8_t bat = remoteCharacteristic->readValue<uint8_t>();
           ESP_LOGI(TAG,"Read battery value: 0x%x %d",bat,bat);
 
-          msg_iTag.battery = bat;
+          msg_iTag.battery = static_cast<int8_t>(bat);
         }
   //          if(remoteCharacteristic->canNotify()) {
   //            remoteCharacteristic->registerForNotify(batteryNotifyCallback);
@@ -189,11 +194,11 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
       if (!xReturned)
       {
-        ESP_LOGE(TAG,"ERROR iTAG detected queue is full: %s RETRY for 1s",String(advertisedDevice->toString().c_str()).c_str());
+        ESP_LOGE(TAG,"ERROR iTAG detected queue is full: %s RETRY for 1s",std::string(advertisedDevice->toString().c_str()).c_str());
         xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 )); //just wait a short while
         if (!xReturned)
         {
-          ESP_LOGE(TAG,"ERROR ERROR iTAG detected queue is still full: %s trow a way detected",String(advertisedDevice->toString().c_str()).c_str());
+          ESP_LOGE(TAG,"ERROR ERROR iTAG detected queue is still full: %s trow a way detected",std::string(advertisedDevice->toString().c_str()).c_str());
           //TODO do something clever ??? Collect how many?
         }
       }
@@ -272,7 +277,7 @@ static void vTaskBTConnect( void *pvParameters )
         }
         break;
         default:
-          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg_iTag.header.msgType);
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%" PRIx32 "",msg_iTag.header.msgType);
           break;
       }
     }

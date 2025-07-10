@@ -109,14 +109,14 @@ class Race {
         msg.Broadcast.RaceConfig.updateCloserTime = updateCloserTime;
         msg.Broadcast.RaceConfig.raceStartInTime = raceStartInTime;
 
-        ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+        ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%" PRIx32 " filename:%s name:%s distace:%" PRId32 " laps:%" PRId32 " blockNewLapTime:%" PRId64 " updateCloserTime:%" PRId64 ", raceStartInTime:%" PRId64 "",
         msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
         msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
 
         BaseType_t xReturned = xQueueSend(queue, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
         if (!xReturned) {
           // it it fails let the user click again
-          ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
+          ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%" PRIx32 " could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
         }
     }
 
@@ -370,13 +370,13 @@ static void AddParticipantToGFX(uint32_t handleDB, participantData &participant,
   msg.AddUser.name[len] = '\0';
   msg.AddUser.inRace = participant.getInRace();  
 
-  //ESP_LOGI(TAG,"Send: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+  //ESP_LOGI(TAG,"Send: MSG_GFX_ADD_USER MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%" PRId32 "",
   //             msg.AddUser.header.msgType, msg.AddUser.handleDB, msg.AddUser.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
 
   BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ? if not participant.isHandleGFXValid() sometimes later
   if (!xReturned) {
     // it it fails er are probably smoked
-    ESP_LOGE(TAG,"FATAL ERROR: Send: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d could not be sent in 2000ms. INITIAL SETUP ERROR",
+    ESP_LOGE(TAG,"FATAL ERROR: Send: MSG_GFX_ADD_USER MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%d could not be sent in 2000ms. INITIAL SETUP ERROR",
                  msg.AddUser.header.msgType, msg.AddUser.handleDB, msg.AddUser.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
     ESP_LOGE(TAG,"----- esp_restart() -----");
     esp_restart();
@@ -395,13 +395,13 @@ bool iTag::UpdateParticipantInGFX()
   msg.UpdateUser.name[len] = '\0';
   msg.UpdateUser.inRace = participant.getInRace();
 
-  //ESP_LOGI(TAG,"Send: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+  //ESP_LOGI(TAG,"Send: MSG_GFX_UPDATE_USER MSG:0x%" PRIx32 " handleGFX:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%" PRId32 "",
   //             msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
 
   BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ? if not participant.isHandleGFXValid() sometimes later
   if (!xReturned) {
     // it it fails let the user click again
-    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d could not be sent in 2000ms. USER need to retry",
+    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_UPDATE_USER MSG:0x%" PRIx32 " handleGFX:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%d could not be sent in 2000ms. USER need to retry",
                  msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
   }
   return xReturned;
@@ -436,7 +436,7 @@ bool iTag::UpdateParticipantStatusInGUI()
     msg.UpdateStatus.battery = battery;
     msg.UpdateStatus.inRace = participant.getInRace();
 
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_STATUS: MSG:0x%" PRIx32 " handleGFX:0x%08" PRIx32 " connectionStatus:%" PRId32 " battery:%" PRId32 " inRace:%d",
     //            msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
 
     BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 200 )); // TODO add resend ?
@@ -481,7 +481,7 @@ bool iTag::UpdateParticipantStatsInGUI()
           msg.UpdateUserData.connectionStatus = 0;
     }
     msg.UpdateUserData.inRace = participant.getInRace();
-    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d connectionStatus:%d",
+    //ESP_LOGI(TAG,"Send MSG_GFX_UPDATE_USER_DATA: MSG:0x%" PRIx32 " handleGFX:0x%08" PRIx32 " distance:%" PRId32 " laps:%" PRId32 " lastlaptime:%" PRId32 " connectionStatus:%" PRId32 "",
     //            msg.UpdateUserData.header.msgType, msg.UpdateUserData.handleGFX, msg.UpdateUserData.distance, msg.UpdateUserData.laps,
     //            msg.UpdateUserData.lastLapTime, msg.UpdateUserData.connectionStatus);
 
@@ -590,7 +590,7 @@ void refreshTagGUI()
     }
 
    // if(iTags[j].active) {
-   //   ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%d %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),theRace.getBlockNewLapTime(), longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
+   //   ESP_LOGI(TAG,"Active: %3d/%3d (max:%3d) %s RSSI:%" PRId32 " %3d%% Laps: %5d | %s", iTags[j].participant.getTimeSinceLastSeen(),theRace.getBlockNewLapTime(), longestNonSeen, iTags[j].connected? "#":" ", iTags[j].getRSSI(), iTags[j].battery ,iTags[j].participant.getLapCount() , iTags[j].participant.getName().c_str());
    // }
   }
 //  ESP_LOGI(TAG,"------------------------");
@@ -612,7 +612,7 @@ static void printDirectory(File dir, int numTabs) {
       ESP_LOGI(TAG,"  %s/",entry.name());
       printDirectory(entry, numTabs + 1);
     } else {
-      ESP_LOGI(TAG,"  %s %d",entry.name(),entry.size());
+      ESP_LOGI(TAG,"  %s %" PRId32 "",entry.name(),entry.size());
       // files have sizes, directories do not
     }
     entry.close();
@@ -654,7 +654,7 @@ static void DBloadGlobalConfig()
   DeserializationError err = deserializeJson(raceJson, raceFile);
   raceFile.close();
   if (err) {
-    ESP_LOGE(TAG,"LoadGlobalConfig ERROR: deserializeJson() failed with code %s",err.f_str());
+    ESP_LOGE(TAG,"LoadGlobalConfig ERROR: deserializeJson() failed with code %s",err.c_str());
     checkDisk(); // just for debug
     return;
   }
@@ -714,7 +714,7 @@ static void DBloadRace()
   DeserializationError err = deserializeJson(raceJson, raceFile);
   raceFile.close();
   if (err) {
-    ESP_LOGE(TAG,"ERROR: deserializeJson() failed with code %s",err.f_str());
+    ESP_LOGE(TAG,"ERROR: deserializeJson() failed with code %s",err.c_str());
     checkDisk(); // just for debug
     return;
   }
@@ -765,7 +765,7 @@ static void DBloadRace()
 
 
   if ( std::abs(raceLapDist - theRace.getLapDistance()) > 1.0) {
-    ESP_LOGE(TAG,"LoadRace ERROR lapdistance=%f != %f (calculated lap distance from dist:%d laps:%d) (NOK) Do nothing",raceLapDist,theRace.getLapDistance(),raceDist,raceLaps);
+    ESP_LOGE(TAG,"LoadRace ERROR lapdistance=%f != %f (calculated lap distance from dist:%" PRId32 " laps:%" PRId32 ") (NOK) Do nothing",raceLapDist,theRace.getLapDistance(),raceDist,raceLaps);
   } 
   theRace.send_ConfigMsg(queueGFX);
 
@@ -773,19 +773,19 @@ static void DBloadRace()
 
   msg_GFX msg;
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_CLEAR;  // We send this to "Clear data" before countdown, this would be what a user expect
-  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%x",msg.Broadcast.RaceStart.header.msgType);
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CLEAR MSG:0x%" PRIx32 "",msg.Broadcast.RaceStart.header.msgType);
   xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 
   // And Start a race at "correct time" (from file)
 
   msg.Broadcast.RaceStart.header.msgType = MSG_RACE_START;  // We send this to "Clear data" before countdown, this would be what a user expect
   msg.Broadcast.RaceStart.startTime = raceStart;
-  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%x startTime:%d",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+  //ESP_LOGI(TAG,"Send: MSG_RACE_START MSG:0x%" PRIx32 " startTime:%" PRId32 "",msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
   xQueueSend(queueGFX, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 ));  //No check for error, user will see problem in UI and repress
 
   if ( raceTagCount > ITAG_COUNT) {
     // TODO make ITAG_COUNT database dynamic? We have like 8MB ram anyway :)
-    ESP_LOGW(TAG,"tags=%d is larger then number of supported tags: %d (will only read %d first tags SORRY)",raceTagCount, ITAG_COUNT,ITAG_COUNT);
+    ESP_LOGW(TAG,"tags=%" PRId32 " is larger then number of supported tags: %d (will only read %d first tags SORRY)",raceTagCount, ITAG_COUNT,ITAG_COUNT);
     raceTagCount = ITAG_COUNT;
   }
 
@@ -794,7 +794,7 @@ static void DBloadRace()
     JsonObject tagJson = raceJson["tag"][i];
     if (tagJson == nullptr)
     {
-      ESP_LOGE(TAG,"ERROR: File should have at least %d tags, but problem reading tag:%d Stop reading tags SORRY",raceTagCount, i);
+      ESP_LOGE(TAG,"ERROR: File should have at least %" PRId32 " tags, but problem reading tag:%d Stop reading tags SORRY",raceTagCount, i);
       break;
     }
     std::string tagAddress = tagJson["address"]; // -> iTags[i].address;
@@ -808,7 +808,7 @@ static void DBloadRace()
     uint32_t participantTimeSinceLastSeen = participantJson["timeSinceLastSeen"]; // -> iTags[i].participant.getTimeSinceLastSeen();
     bool participantInRace = participantJson["inRace"]; // -> iTags[i].participant.getInRace();
 
-    //ESP_LOGI(TAG,"iTag[%02d] %s (0x%06x 0x%06x) %s Participant: laps:%4d, lastSeen:%8d %s %s",i,tagAddress.c_str(),tagColor0,tagColor1,tagActive?"ACTIVE":"  NO  ",participantLaps,participantTimeSinceLastSeen,participantInRace?"Race":" NO ",participantName.c_str());
+    //ESP_LOGI(TAG,"iTag[%02d] %s (0x%06" PRIx32 " 0x%06" PRIx32 ") %s Participant: laps:%4d, lastSeen:%8d %s %s",i,tagAddress.c_str(),tagColor0,tagColor1,tagActive?"ACTIVE":"  NO  ",participantLaps,participantTimeSinceLastSeen,participantInRace?"Race":" NO ",participantName.c_str());
     iTags[i].address = tagAddress;
     iTags[i].color0 = tagColor0;
     iTags[i].color1 = tagColor1;
@@ -859,7 +859,7 @@ static void DBloadRace()
 
         if ((raceStart+lapStart+lapLastSeen) > now) {
           // If our clock is older the lapLastSeen jump to that time
-          ESP_LOGW(TAG,"LoadRace WARNING race lapLastSeen is after NOW by %d s faking a timejump to race time by force",(raceStart+lapStart+lapLastSeen) - now);
+          ESP_LOGW(TAG,"LoadRace WARNING race lapLastSeen is after NOW by %" PRId64 " s faking a timejump to race time by force",(raceStart+lapStart+lapLastSeen) - now);
           rtc.setTime((raceStart+lapStart+lapLastSeen),0);
         }
 
@@ -939,7 +939,7 @@ static void DBsaveRace()
   std::string fileName = std::string("/").append(theRace.getFileName());
   File raceFile = LittleFS.open(fileName.c_str(), "w");
   if (!raceFile) {
-    ESP_LOGE(TAG,"ERROR: LittleFS open(%s,w) failed", fileName.c_str());
+    ESP_LOGE(TAG,"ERROR: LittleFS fopen(%s,w) failed", fileName.c_str());
     checkDisk(); // just for debug
     return;
   }
@@ -948,7 +948,7 @@ static void DBsaveRace()
 
   uint64_t stop_time = micros();
   uint32_t tot_time = stop_time - start_time;
-  ESP_LOGI(TAG,"Saved Race as %s time %d us", fileName.c_str(),tot_time );
+  ESP_LOGI(TAG,"Saved Race as %s time %" PRId32 " us", fileName.c_str(),tot_time );
 
 //  checkDisk(); // just for debug
 }
@@ -1014,12 +1014,17 @@ void vTaskRaceDB( void *pvParameters )
 #ifdef ALL_TAGS_TRIGGER_DEFAULT_PARTICIPANT
               // Override and always trigger this participant -> one man race mode use all TAGs
               // This is done AFTER check for MSG_ITAG_CONFIG is sent to ensure every tag is configurated
-              //ESP_LOGI(TAG,"####### Spotted TAG:%d but fake it as TAG:%d %s Time: %s", j, DEFAULT_PARTICIPANT, iTags[DEFAULT_PARTICIPANT].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+              //ESP_LOGI(TAG,"####### Spotted TAG:%" PRId32 " but fake it as TAG:%" PRId32 " %s Time: %s", j, DEFAULT_PARTICIPANT, iTags[DEFAULT_PARTICIPANT].participant.getName().c_str(),strftime_buf);
               j = DEFAULT_PARTICIPANT;
 #else
-              //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str());
+              //ESP_LOGI(TAG,"####### Spotted %s Time: %s", iTags[j].participant.getName().c_str(),strftime_buf);
 #endif
               time_t iTagLapTime = msg.iTag.time;
+              // Format iTagLapTime for logging (ensure buffer is in scope for all uses)
+              struct tm timeinfo;
+              localtime_r(&iTagLapTime, &timeinfo);
+              char strftime_buf[64];
+              strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
               time_t newLapTime = difftime(iTagLapTime, theRace.getRaceStart());
               iTags[j].setRSSI(msg.iTag.RSSI);
               if (msg.iTag.battery != INT8_MIN) {
@@ -1031,16 +1036,16 @@ void vTaskRaceDB( void *pvParameters )
               //tm timeNow = rtc.getTimeStruct();
               time_t lastSeenSinceStart = iTags[j].participant.getCurrentLapStart() + iTags[j].participant.getCurrentLastSeen();
               uint32_t timeSinceLastSeen = difftime(newLapTime, lastSeenSinceStart);
-              ESP_LOGI(TAG,"%s Connected Time: %s               timeSinceLastSeen: %d = difftime(newLapTime:%d, lastSeenSinceStart:%d) ", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen,newLapTime,lastSeenSinceStart);
+              ESP_LOGI(TAG,"%s Connected Time: %s               timeSinceLastSeen: %" PRId32 " = difftime(newLapTime:%" PRId64 ", lastSeenSinceStart:%" PRId64 ") ", iTags[j].participant.getName().c_str(),strftime_buf,timeSinceLastSeen,newLapTime,lastSeenSinceStart);
 
-              ESP_LOGI(TAG,"%s Connected Time: %s Check new lap timeSinceLastSeen: %d > theRace.getBlockNewLapTime():%d ?", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),timeSinceLastSeen,theRace.getBlockNewLapTime());
+              ESP_LOGI(TAG,"%s Connected Time: %s Check new lap timeSinceLastSeen: %" PRId32 " > theRace.getBlockNewLapTime():%" PRId64 " ?", iTags[j].participant.getName().c_str(),strftime_buf,timeSinceLastSeen,theRace.getBlockNewLapTime());
               if (timeSinceLastSeen > theRace.getBlockNewLapTime()) {                
                 // New Lap!
-                ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) NEW LAP", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
+                ESP_LOGI(TAG,"%s Connected Time: %s delta %" PRId64 "->%" PRId32 " (%" PRId64 ",%" PRId64 ") NEW LAP", iTags[j].participant.getName().c_str(),strftime_buf,newLapTime,timeSinceLastSeen, iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen());
                 iTags[j].participant.setBestRSSInearNewLap(msg.iTag.RSSI); // Save RSSI
                 if(!iTags[j].participant.nextLap(newLapTime)) {
                   //TODO GUI popup ??
-                  ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %d Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
+                  ESP_LOGE(TAG,"%s NEW LAP ERROR can't handle more then %" PRId32 " Laps during race", iTags[j].participant.getName().c_str(),iTags[j].participant.getLapCount());
                 }
                 if (theRace.isRaceOngoing()) {
                   // Save every lap (is this to aggresive?)
@@ -1063,7 +1068,7 @@ void vTaskRaceDB( void *pvParameters )
                   }
                 }
                 time_t newLastSeenSinceLapStart = difftime(newLapTime, iTags[j].participant.getCurrentLapStart());
-                ESP_LOGI(TAG,"%s Connected Time: %s delta %d->%d (%d,%d) %d To early", iTags[j].participant.getName().c_str(),rtc.getTime("%Y-%m-%d %H:%M:%S").c_str(),newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
+                ESP_LOGI(TAG,"%s Connected Time: %s delta %" PRId64 "->%" PRId32 " (%" PRId64 ",%" PRId64 ") %" PRId64 " To early", iTags[j].participant.getName().c_str(),strftime_buf,newLapTime,timeSinceLastSeen,iTags[j].participant.getCurrentLapStart(), iTags[j].participant.getCurrentLastSeen(),newLastSeenSinceLapStart);
                 iTags[j].participant.setCurrentLastSeen(newLastSeenSinceLapStart);
               }
               autoSaveTainted = true;
@@ -1102,14 +1107,14 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_ITAG_GFX_ADD_USER_RESPONSE:
         {
-          //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " wasOK:%" PRId32 "", 
           //     msg.AddedToGFX.header.msgType, msg.AddedToGFX.handleDB, msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
           iTags[msg.AddedToGFX.handleDB].participant.setHandleGFX(msg.AddedToGFX.handleGFX, msg.AddedToGFX.wasOK);
           break;
         }
         case MSG_ITAG_UPDATE_USER:
         {
-          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d", 
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " inRace:%d", 
                msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
 
           uint32_t handleDB = msg.UpdateParticipant.handleDB;
@@ -1126,7 +1131,7 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_UPDATE_USER_RACE_STATUS:
         {
           uint32_t handleDB = msg.UpdateParticipantRaceStatus.handleDB;
-          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d ? myinRace:%d", 
+          //ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " inRace:%d ? myinRace:d", 
           //     msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace,iTags[handleDB].participant.getInRace());
           if (iTags[handleDB].participant.getInRace() !=  msg.UpdateParticipantRaceStatus.inRace)
           {
@@ -1140,7 +1145,7 @@ void vTaskRaceDB( void *pvParameters )
         case MSG_ITAG_UPDATE_USER_LAP_COUNT:
         {
           uint32_t handleDB = msg.UpdateParticipantLapCount.handleDB;
-          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+          ESP_LOGI(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 "", 
                msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
   
           // We add/sub the laps one at a time to make sure all is handled
@@ -1149,10 +1154,10 @@ void vTaskRaceDB( void *pvParameters )
           int32_t lapDiff = msg.UpdateParticipantLapCount.lapDiff;
           if (lapDiff < 0) {
             // Negative remove laps
-            ESP_LOGI(TAG," Negative diff %d laps",lapDiff);
+            ESP_LOGI(TAG," Negative diff %" PRId32 " laps",lapDiff);
             for(int i = 0; i > lapDiff; i--)
             {
-              ESP_LOGI(TAG," Removing %d/%d laps",i, lapDiff);
+              ESP_LOGI(TAG," Removing %d/%" PRId32 " laps",i, lapDiff);
               iTags[handleDB].participant.prevLap();
             }
             if (theRace.isRaceOngoing()) {
@@ -1161,10 +1166,10 @@ void vTaskRaceDB( void *pvParameters )
           }
           else  if (lapDiff > 0) {
             // Positive add laps
-            ESP_LOGI(TAG," Positive diff %d laps",lapDiff);
+            ESP_LOGI(TAG," Positive diff %" PRId32 " laps",lapDiff);
             for(int i = 0; i < lapDiff; i++)
             {
-              ESP_LOGI(TAG," Adding %d/%d laps",i, lapDiff);
+              ESP_LOGI(TAG," Adding %d/%" PRId32 " laps",i, lapDiff);
               tm timeNow = rtc.getTimeStruct();
               time_t lapStart = difftime(mktime(&timeNow), theRace.getRaceStart());
               // TODO Now this will add a "lap block" so this ONLY works when participant is in "LAP AREA"
@@ -1176,14 +1181,14 @@ void vTaskRaceDB( void *pvParameters )
             }
           }
           else {
-            ESP_LOGW(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d = 0 -> Do nothing",
+            ESP_LOGW(TAG,"Received: MSG_ITAG_UPDATE_USER_LAP_COUNT MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 " = 0 -> Do nothing",
                 msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
           }
           break;
         }
         case MSG_ITAG_LOAD_RACE:
         {
-          ESP_LOGI(TAG,"Received: MSG_ITAG_LOAD_RACE MSG:0x%x", msg.LoadRace.header.msgType);
+          ESP_LOGI(TAG,"Received: MSG_ITAG_LOAD_RACE MSG:0x%" PRIx32 "", msg.LoadRace.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = false;
           DBloadRace();
@@ -1191,7 +1196,7 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_ITAG_SAVE_RACE:
         {
-          ESP_LOGI(TAG,"Received: MSG_ITAG_SAVE_RACE MSG:0x%x", msg.SaveRace.header.msgType);
+          ESP_LOGI(TAG,"Received: MSG_ITAG_SAVE_RACE MSG:0x%" PRIx32 "", msg.SaveRace.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = false;
           DBsaveRace();
@@ -1226,7 +1231,7 @@ void vTaskRaceDB( void *pvParameters )
         // Broadcast Messages
         case MSG_RACE_START:
         {
-          ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+          ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%" PRIx32 " startTime:%" PRId64 "", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = true;
           raceStartiTags(msg.Broadcast.RaceStart.startTime);
@@ -1234,7 +1239,7 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_RACE_STOP:
         {
-          ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%x", msg.Broadcast.RaceStop.header.msgType);
+          ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%" PRIx32 "", msg.Broadcast.RaceStop.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = true;
           raceStopiTags();
@@ -1242,7 +1247,7 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_RACE_CLEAR:
         {
-          ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+          ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%" PRIx32 "", msg.Broadcast.RaceStart.header.msgType);
           lastAutoSaveMinute = rtc.getMinute(); // Reset autosave timer
           autoSaveTainted = true;
           raceCleariTags();
@@ -1250,13 +1255,13 @@ void vTaskRaceDB( void *pvParameters )
         }
         case MSG_RACE_CONFIG:
         {
-          ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
+          ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%" PRIx32 "", msg.Broadcast.RaceConfig.header.msgType);
           theRace.receive_ConfigMsg(&msg.Broadcast.RaceConfig);
           theRace.send_ConfigMsg(queueGFX); //Make sure GUI is in sync
           break;
         }
         default:
-          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%" PRIx32 "",msg.header.msgType);
           break;
       }
     }
@@ -1270,16 +1275,18 @@ void vTaskRaceDBTimer2000( TimerHandle_t xTimer )
   //Send a tick message to our message queue to do all work in our own thread
   msg_RaceDB msg;
   msg.Timer.header.msgType = MSG_ITAG_TIMER_2000;
-  //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%x", msg.Timer.header.msgType);
+  //ESP_LOGI(TAG,"Send: MSG_ITAG_TIMER_2000 MSG:0x%" PRIx32 "", msg.Timer.header.msgType);
   BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)0); //No blocking
   if( xReturned != pdPASS )
   {
-    ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_TIMER_2000 MSG:0x%x Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
+    ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_TIMER_2000 MSG:0x%" PRIx32 " Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
   }
 }
 
 void initRaceDB()
 {
+  ESP_LOGI(TAG, "Setup RaceDB Start iTag Task");
+
   // Start iTag Task
   BaseType_t xReturned;
   /* Create the task, storing the handle. */
@@ -1293,7 +1300,7 @@ void initRaceDB()
 
   if( xReturned != pdPASS )
   {
-    ESP_LOGE(TAG,"FATAL ERROR: xTaskCreate(vTaskRaceDB, RaceDB,..) Failed");
+    ESP_LOGE(TAG,"FATAL ERROR: xTaskCreate(vTaskRaceDB, RaceDB,..) Failed 0x%x",xReturned);
     ESP_LOGE(TAG,"----- esp_restart() -----");
     esp_restart();
   }

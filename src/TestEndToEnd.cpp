@@ -46,15 +46,15 @@ enum class EndToEndTest : uint32_t
     StopTest
 };
 
-static void Test24H(enum class EndToEndTest testEndToEnd);
-static void Test24HContinue(enum class EndToEndTest testEndToEnd);
-static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd);
-static void TestSetup24H(enum class EndToEndTest testEndToEnd);
-static void SetNTPTimeTest(enum class EndToEndTest testEndToEnd);
+static void Test24H(EndToEndTest testEndToEnd);
+static void Test24HContinue(EndToEndTest testEndToEnd);
+static void ResetRTCfromHW(EndToEndTest testEndToEnd);
+static void TestSetup24H(EndToEndTest testEndToEnd);
+static void SetNTPTimeTest(EndToEndTest testEndToEnd);
 
 
 
-enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
+EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     if (inString == "Test24HFast") return EndToEndTest::Test24HFast;
     if (inString == "Test24HLive") return EndToEndTest::Test24HLive;
     if (inString == "Test24HFastCont") return EndToEndTest::Test24HFastCont;
@@ -66,7 +66,7 @@ enum class EndToEndTest EndToEndTestString2Enum (std::string const& inString) {
     return EndToEndTest::StopTest;
 }
 
-std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
+std::string EndToEndTestEnum2String (EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFast) return std::string("Test24HFast");
     if (enu == EndToEndTest::Test24HLive) return std::string("Test24HLive");
     if (enu == EndToEndTest::Test24HFastCont) return std::string("Test24HFastCont");
@@ -78,7 +78,7 @@ std::string EndToEndTestEnum2String (enum class EndToEndTest enu) {
     return std::string("StopTest");
 }
 
-void executeEndToEndTest(enum class EndToEndTest enu) {
+void executeEndToEndTest(EndToEndTest enu) {
     if (enu == EndToEndTest::Test24HFast) return Test24H(enu);
     if (enu == EndToEndTest::Test24HLive) return Test24H(enu);
     if (enu == EndToEndTest::Test24HFastCont) return Test24HContinue(enu);
@@ -90,7 +90,7 @@ void executeEndToEndTest(enum class EndToEndTest enu) {
     return;
 }
 
-static bool speedupWithTimeJumps(enum class EndToEndTest testEndToEnd)
+static bool speedupWithTimeJumps(EndToEndTest testEndToEnd)
 {
   if (testEndToEnd == EndToEndTest::Test24HFast || testEndToEnd == EndToEndTest::Test24HFastCont) {
     return true;
@@ -98,7 +98,7 @@ static bool speedupWithTimeJumps(enum class EndToEndTest testEndToEnd)
   return false;
 }
 
-static void Test24H(enum class EndToEndTest testEndToEnd)
+static void Test24H(EndToEndTest testEndToEnd)
 {
 
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
@@ -110,7 +110,7 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
   time_t blockNewLapTime = ((170*lapDist)/1000); //seconds
 
 
-  // 24000m on 24h -> laps=(240000.0/lapDist) AvgLapTime=24*60*60/laps
+  // 24000m on 24h -> laps=(240000.0/lapDist) AvgLapTime=24*60*60/wantedLaps
   uint32_t wantedDist=170*1000;
   uint32_t wantedLaps=(wantedDist/lapDist)+1;
   time_t AvgLapTime = 24*60*60/wantedLaps; //blockNewLapTime+2;
@@ -254,7 +254,7 @@ static void Test24H(enum class EndToEndTest testEndToEnd)
   }
 }
 
-static void Test24HContinue(enum class EndToEndTest testEndToEnd)
+static void Test24HContinue(EndToEndTest testEndToEnd)
 {
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
   NimBLEAddress bleAddress(testTag);
@@ -326,7 +326,7 @@ static void Test24HContinue(enum class EndToEndTest testEndToEnd)
 
 void initRTC();
 
-static void ResetRTCfromHW(enum class EndToEndTest testEndToEnd)
+static void ResetRTCfromHW(EndToEndTest testEndToEnd)
 {
   initRTC();
 }
@@ -359,7 +359,7 @@ static time_t secondsTo(int yr, int mt, int dy, int hr, int mn, int sc )
   return 0;
 }
 
-static void SetNTPTimeTest(enum class EndToEndTest testEndToEnd)
+static void SetNTPTimeTest(EndToEndTest testEndToEnd)
 {
 #if 0
   // Replace with your network credentials
@@ -397,7 +397,7 @@ static void SetNTPTimeTest(enum class EndToEndTest testEndToEnd)
 }
 
 
-static void TestSetup24H(enum class EndToEndTest testEndToEnd)
+static void TestSetup24H(EndToEndTest testEndToEnd)
 {
 
   initRTC();
@@ -462,7 +462,7 @@ void vTaskTestEndToEnd( void *pvParameters )
   */
   //configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
   uint32_t data = ( uint32_t ) pvParameters;
-  enum class EndToEndTest testEndToEnd = (enum class EndToEndTest) data;
+  EndToEndTest testEndToEnd = (EndToEndTest) data;
   ESP_LOGI(TAG,"EndToEnd Test: %s > Started!\n", EndToEndTestEnum2String(testEndToEnd).c_str());
 
   executeEndToEndTest(testEndToEnd);
@@ -492,7 +492,7 @@ void startTestEndToEnd(std::string testname)
   stopTestEndToEnd();
 
   ESP_LOGI(TAG,"startTestEndToEnd: Start a task for: %s\n", testname.c_str());
-  enum class EndToEndTest pvParameters = EndToEndTestString2Enum(testname);
+  EndToEndTest pvParameters = EndToEndTestString2Enum(testname);
   ESP_LOGI(TAG,"startTestEndToEnd: Enum used: %s\n", EndToEndTestEnum2String(pvParameters).c_str());
   if (pvParameters == EndToEndTest::StopTest)
   {

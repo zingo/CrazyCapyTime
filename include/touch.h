@@ -176,11 +176,11 @@ bool touch_touched()
   if (ts->isTouched)
   {
 #if defined(TOUCH_SWAP_XY)
-    touch_last_x = map(ts->points[0].y, ts_map_x1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(ts->points[0].x, ts_map_y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(ts->points[0].y, ts_map_x1, TOUCH_MAP_X2, 0, screenWidth - 1);
+    touch_last_y = map(ts->points[0].x, ts_map_y1, TOUCH_MAP_Y2, 0, screenHeight - 1);
 #else
-    touch_last_x = map(ts->points[0].x, ts_map_x1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(ts->points[0].y, ts_map_y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(ts->points[0].x, ts_map_x1, TOUCH_MAP_X2, 0, screenWidth - 1);
+    touch_last_y = map(ts->points[0].y, ts_map_y1, TOUCH_MAP_Y2, 0, screenHeight - 1);
 #endif
     return true;
   }
@@ -194,11 +194,11 @@ bool touch_touched()
   {
     TS_Point p = ts.getPoint();
 #if defined(TOUCH_SWAP_XY)
-    touch_last_x = map(p.y, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(p.x, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(p.y, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, screenWidth - 1);
+    touch_last_y = map(p.x, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, screenHeight - 1);
 #else
-    touch_last_x = map(p.x, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, gfx->width() - 1);
-    touch_last_y = map(p.y, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, gfx->height() - 1);
+    touch_last_x = map(p.x, TOUCH_MAP_X1, TOUCH_MAP_X2, 0, screenWidth - 1);
+    touch_last_y = map(p.y, TOUCH_MAP_Y1, TOUCH_MAP_Y2, 0, screenHeight - 1);
 #endif
     return true;
   }

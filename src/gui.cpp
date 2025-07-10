@@ -34,19 +34,22 @@
 
 #define TAG "GFX"
 
-#define TFT_BL 2
-#define GFX_BL DF_GFX_BL // default backlight pin, you may replace DF_GFX_BL to actual backlight pin
+#define GFX_BL 2 //DF_GFX_BL // default backlight pin, you may replace DF_GFX_BL to actual backlight pin
 
-static Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
-    GFX_NOT_DEFINED /* CS */, GFX_NOT_DEFINED /* SCK */, GFX_NOT_DEFINED /* SDA */,
+static Arduino_ESP32RGBPanel *rgbpanel = new Arduino_ESP32RGBPanel(
+    //GFX_NOT_DEFINED /* CS */, GFX_NOT_DEFINED /* SCK */, GFX_NOT_DEFINED /* SDA */,
     40 /* DE */, 41 /* VSYNC */, 39 /* HSYNC */, 42 /* PCLK */,
     45 /* R0 */, 48 /* R1 */, 47 /* R2 */, 21 /* R3 */, 14 /* R4 */,
     5 /* G0 */, 6 /* G1 */, 7 /* G2 */, 15 /* G3 */, 16 /* G4 */, 4 /* G5 */,
-    8 /* B0 */, 3 /* B1 */, 46 /* B2 */, 9 /* B3 */, 1 /* B4 */
+    8 /* B0 */, 3 /* B1 */, 46 /* B2 */, 9 /* B3 */, 1 /* B4 */,
+    0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
+    0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
+    1 /* pclk_active_neg */, 14000000 /* prefer_speed */
+
 );
 
 //  ST7262 IPS LCD 800x480
-static Arduino_RPi_DPI_RGBPanel *gfx;
+static Arduino_GFX *gfx;
 
 // Include touch.h after gfx is declered, it is used inside that file
 #include "touch.h"
@@ -55,8 +58,6 @@ TAMC_GT911 *ts; //= TAMC_GT911(TOUCH_GT911_SDA, TOUCH_GT911_SCL, TOUCH_GT911_INT
 #endif
 
 // Setup screen resolution for LVGL
-static uint32_t screenWidth;
-static uint32_t screenHeight;
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *disp_draw_buf = nullptr;
 static lv_disp_drv_t disp_drv;
@@ -273,9 +274,9 @@ static void btnTagAddToRace_event_cb(lv_event_t * e)
       msg.UpdateParticipantRaceStatus.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantRaceStatus.handleGFX = handleGFX;
       msg.UpdateParticipantRaceStatus.inRace = !guiParticipants[handleGFX].inRace; //TOGGLE
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x inRace:%d", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x inRace:%" PRId32 "", 
       //              msg.UpdateParticipantRaceStatus.header.msgType, msg.UpdateParticipantRaceStatus.handleDB, msg.UpdateParticipantRaceStatus.handleGFX, msg.UpdateParticipantRaceStatus.inRace);
-      BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
+      /* BaseType_t xReturned = */ xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       // it it fails let the user click again
       // TODO log error? xReturned;
     }
@@ -330,13 +331,13 @@ static void taEdit_event_cb(lv_event_t * e)
     msg.UpdateParticipant.name[len] = '\0';
     msg.UpdateParticipant.inRace = inRace;
 
-    //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d",
+    //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%" PRId32 "",
     //             msg.UpdateParticipant.header.msgType, msg.UpdateParticipant.handleDB, msg.UpdateParticipant.handleGFX, msg.UpdateParticipant.color0, msg.UpdateParticipant.color1, msg.UpdateParticipant.name, msg.UpdateParticipant.inRace);
 
     BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
     if (!xReturned) {
       // it it fails let the user click again
-      ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER MSG:0x%x handleDB:0x%08x handleGFX:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d could not be sent in 2000ms. USER need to retry",
+      ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%d could not be sent in 2000ms. USER need to retry",
                   msg.UpdateParticipant.header.msgType, msg.UpdateParticipant.handleDB, msg.UpdateParticipant.handleGFX, msg.UpdateParticipant.color0, msg.UpdateParticipant.color1, msg.UpdateParticipant.name, msg.UpdateParticipant.inRace);
     }
   }
@@ -353,12 +354,12 @@ static void btnTagAdd_event_cb(lv_event_t * e)
       msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantLapCount.handleGFX = handleGFX;
       msg.UpdateParticipantLapCount.lapDiff = 1;
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x lapDiff:%" PRId32 "", 
       //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       if (!xReturned) {
         // it it fails let the user click again
-        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 " could not be sent in 1000ms. USER need to retry", 
                       msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       }
     }
@@ -375,12 +376,12 @@ static void btnTagSub_event_cb(lv_event_t * e)
       msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantLapCount.handleGFX = handleGFX;
       msg.UpdateParticipantLapCount.lapDiff = -1;
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x lapDiff:%" PRId32 "", 
       //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       if (!xReturned) {
         // it it fails let the user click again
-        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 "  handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 " could not be sent in 1000ms. USER need to retry", 
                       msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       }
     }
@@ -397,12 +398,12 @@ static void btnCurrentUserAdd_event_cb(lv_event_t * e)
       msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantLapCount.handleGFX = handleGFX;
       msg.UpdateParticipantLapCount.lapDiff = 1;
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x lapDiff:%" PRId32 "", 
       //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       if (!xReturned) {
         // it it fails let the user click again
-        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 " could not be sent in 1000ms. USER need to retry", 
                       msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       }
     }
@@ -419,12 +420,12 @@ static void btnCurrentUserSub_event_cb(lv_event_t * e)
       msg.UpdateParticipantLapCount.handleDB = guiParticipants[handleGFX].handleDB;
       msg.UpdateParticipantLapCount.handleGFX = handleGFX;
       msg.UpdateParticipantLapCount.lapDiff = -1;
-      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d", 
+      //ESP_LOGI(TAG,"Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x lapDiff:%" PRId32 "", 
       //              msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 1000 ));  
       if (!xReturned) {
         // it it fails let the user click again
-        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%x handleDB:0x%08x handleGFX:0x%08x lapDiff:%d could not be sent in 1000ms. USER need to retry", 
+        ESP_LOGW(TAG,"WARNING: Send: MSG_ITAG_UPDATE_USER_RACE_STATUS MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " handleGFX:0x%08" PRIx32 " lapDiff:%" PRId32 " could not be sent in 1000ms. USER need to retry", 
                       msg.UpdateParticipantLapCount.header.msgType, msg.UpdateParticipantLapCount.handleDB, msg.UpdateParticipantLapCount.handleGFX, msg.UpdateParticipantLapCount.lapDiff);
       }
     }
@@ -478,7 +479,7 @@ static void btnTest_event_cb(lv_event_t * e)
 
         ESP_LOGI(TAG,"TEST: %s was pressed\n", txt);
         std::string stopTesting("StopTesting");
-        std::string selected = txt;
+        const std::string selected = txt;
 
         if (selected != stopTesting) {
           startTestEndToEnd(selected);
@@ -703,7 +704,7 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
 
   // ------ Laps
   lv_obj_t * labelLaps = lv_label_create(panel1);
-  lv_label_set_text_fmt(labelLaps, "(%2d/%2d)",0,guiRace.getLaps());
+  lv_label_set_text_fmt(labelLaps, "(%2d/%2ld)",0,guiRace.getLaps());
   lv_obj_add_style(labelLaps, &styleTagText, 0);
   lv_obj_set_grid_cell(labelLaps, LV_GRID_ALIGN_START, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
@@ -716,7 +717,6 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   lv_label_set_text_fmt(labelTime, "%3d:%02d:%02d", (timeinfo.tm_mday-1)*24+timeinfo.tm_hour,timeinfo.tm_min,timeinfo.tm_sec);
   lv_obj_set_grid_cell(labelTime, LV_GRID_ALIGN_END, x_pos++, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
-  // ------ BT Connection
   lv_obj_t * labelConnectionStatus = lv_label_create(panel1);
   lv_obj_add_style(labelConnectionStatus, &styleIcon, 0);
   lv_label_set_text(labelConnectionStatus, LV_SYMBOL_BLUETOOTH);
@@ -763,7 +763,6 @@ static bool gfxAddUserToParticipants(lv_obj_t * parent, msg_AddParticipant &msgP
   guiParticipants[handleGFX].thisLapStart = 0;
   guiParticipants[handleGFX].seriesLaps = seriesLaps;
   //guiParticipants[handleGFX].seriesRSSI = seriesRSSI;
-  guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].labelToRace = labelToRace;
   guiParticipants[handleGFX].ledColor0 = ledColor0;
   guiParticipants[handleGFX].ledColor1 = ledColor1;
@@ -876,7 +875,7 @@ void guiRace::createGUITabRaceGraph()
 
   labelCurrentUserGoal = lv_label_create(selectedUser2);
   lv_obj_add_style(labelCurrentUserGoal, &styleTagText, 0);
-  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %d km",personalGoal/1000);
+  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %" PRId32 " km",personalGoal/1000);
 
 
   if(isDataValid()) {
@@ -889,7 +888,7 @@ void guiRace::setCurrentUserPersonalGoal(uint32_t goal)
   personalGoal = goal; 
   updateGUITabRaceGraphGoalLines();
   UpdateCurrentUserInfo(getCurrentUserHandleGFX());
-  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %d km",goal/1000);
+  lv_label_set_text_fmt(labelCurrentUserGoal, "Goal: %" PRId32 " km",goal/1000);
   if(isDataValid()) {
     updateGUITabRaceGraph();
   }
@@ -901,8 +900,9 @@ void guiRace::UpdateCurrentUserInfo(uint32_t handleGFX)
   uint32_t lapDist = getDistance();
   if (!isTimeBasedRace()) {
     uint32_t laps = getLaps();
-    if (laps<1) laps =1; //divisions protection
-    lapDist = lapDist / getLaps();
+    if (laps < 1) laps =1; //divisions protection
+
+    lapDist = lapDist / laps;
   }
 
   double dist = guiParticipants[handleGFX].laps * lapDist;
@@ -975,9 +975,9 @@ void guiRace::UpdateCurrentUserInfo(uint32_t handleGFX)
     lv_obj_set_style_bg_color(selectedUser, lv_palette_main(LV_PALETTE_RED), 0);
   }
 
-  //ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------firstHalf:%d  msg.lastLapTime:%d < (guiRace.getMaxTime()*60*60/2) %d" ,firstHalf, msg.lastLapTime, (guiRace.getMaxTime()*60*60/2));
-  ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------lap:%3d -- %4.3f km -- Pace [%d:%02d, %d:%02d, %d:%02d] firstHalf:%d lapDist:%d guiParticipants[handleGFX].laps: %d" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec,firstHalf,lapDist,guiParticipants[handleGFX].laps);
-  lv_label_set_text_fmt(labelCurrentUserName,  "lap:%3d -- %4.3f km -- Pace [%d:%02d, %d:%02d, %d:%02d]" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec);
+  //ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------firstHalf:%" PRId32 "  msg.lastLapTime:%" PRId32 " < (guiRace.getMaxTime()*60*60/2) %" PRId32 "" ,firstHalf, msg.lastLapTime, (guiRace.getMaxTime()*60*60/2));
+  ESP_LOGI(TAG,"gfxUpdateParticipantData() MATCH-------------lap:%3" PRId32 " -- %4.3f km -- Pace [%" PRId32 ":%02" PRId32 ", %" PRId32 ":%02" PRId32 ", %" PRId32 ":%02" PRId32 "] firstHalf:%d lapDist:%" PRId32 " guiParticipants[handleGFX].laps: %" PRId32 "" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec,firstHalf,lapDist,guiParticipants[handleGFX].laps);
+  lv_label_set_text_fmt(labelCurrentUserName,  "lap:%3" PRId32 " -- %4.3f km -- Pace [%" PRId32 ":%02" PRId32 ", %" PRId32 ":%02" PRId32 ", %" PRId32 ":%02" PRId32 "]" ,guiParticipants[handleGFX].laps , dist/1000.0,paceFromStartMin,paceFromStartSec,paceNowMin, paceNowSec, paceLeftMin,paceLeftSec);
 }
 
 
@@ -1020,7 +1020,7 @@ void guiRace::updateGUITabRaceGraph()
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_X, 0, maxTime*60*60);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, raceDist);
     //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, raceDist);
-    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d]",maxTime*60*60,raceDist);
+    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%lld] y:[0,%" PRId32 "]",maxTime*60*60,raceDist);
   }
   else {
     lv_chart_set_div_line_count(chartLaps, maxTime+1, maxTime+1); //reversed order Y-Horizontal first
@@ -1030,7 +1030,7 @@ void guiRace::updateGUITabRaceGraph()
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_PRIMARY_Y, 0, raceDist);
     //lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_X, 0, raceDist);
     lv_chart_set_range(chartLaps, LV_CHART_AXIS_SECONDARY_Y, 0, raceDist/1000);
-    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%d] y:[0,%d] maxLaps:%d",maxTime*60*60,raceDist,laps);
+    ESP_LOGI(TAG,"createGUITabRaceGraph() x:[0,%lld] y:[0,%" PRId32 "] maxLaps:%" PRId32 "",maxTime*60*60,raceDist,laps);
   }
 
   if (!timeBasedRace) {
@@ -1086,14 +1086,14 @@ void guiRace::updateGUITabRaceGraphGoalLines()
 static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
   if(lap > guiRace.getMaxGraphLaps()) {
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR above maxLaps:%d DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR above maxLaps:%" PRId32 " DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
     return;
   }
   if (!guiRace.isTimeBasedRace()) {
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%" PRId32 ", lap:%" PRId32 ", time:%lld, dist: %" PRId32 ")",handleGFX,lap,time,dist);
     
     if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
-      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lv_chart_get_point_count(chartLaps));
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
       return;
     }
 
@@ -1105,10 +1105,10 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
   else {
     //time=time/100;
     //dist=dist/100;
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased only save arrive)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%" PRId32 ", lap:%" PRId32 ", time:%lld, dist: %" PRId32 ") (timebased only save arrive)",handleGFX,lap,time,dist);
 
     if(lap > lv_chart_get_point_count(chartLaps)) {
-      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%d, lap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartNewLap(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
       return;
     }
 
@@ -1121,13 +1121,13 @@ static void gfxUpdateParticipantChartNewLap(uint32_t handleGFX, uint32_t lap, ti
 static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, time_t time, uint32_t dist)
 {
   if(lap > guiRace.getMaxGraphLaps()) {
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR above maxLaps:%d DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR above maxLaps:%" PRId32 " DO NOTHING",handleGFX,lap,guiRace.getMaxGraphLaps());
     return;
   }
   if (!guiRace.isTimeBasedRace()) {
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%" PRId32 ", lap:%" PRId32 ", time:%lld, dist: %" PRId32 ")",handleGFX,lap,time,dist);
     if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
-      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
       return;
     }
     guiParticipants[handleGFX].seriesLaps->x_points[2*lap+1] = time;
@@ -1137,9 +1137,9 @@ static void gfxUpdateParticipantChartLastSeen(uint32_t handleGFX, uint32_t lap, 
   else {
     //time=time/100;
     //dist=dist/100;
-    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d, time:%d, dist: %d) (timebased do nothing)",handleGFX,lap,time,dist);
+    ESP_LOGI(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%" PRId32 ", lap:%" PRId32 ", time:%lld, dist: %" PRId32 ") (timebased do nothing)",handleGFX,lap,time,dist);
     if(lap > lv_chart_get_point_count(chartLaps)) {
-      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%d, lap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lv_chart_get_point_count(chartLaps));
+      ESP_LOGE(TAG,"gfxUpdateParticipantChartLastSeen(handleGFX:%" PRId32 ", lap:%" PRId32 ",...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,lap,lv_chart_get_point_count(chartLaps));
       return;
     }
     //TODO or do nothing here ????
@@ -1159,7 +1159,7 @@ static void gfxUpdateParticipantChartRSSI(uint32_t handleGFX, int8_t RSSI)
   if (RSSI >= -100 && RSSI < 0) {
     plotValue = 100 - std::abs(RSSI); 
   }
-  //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%d, RSSI:%d) -> Plot: %d",handleGFX,RSSI,plotValue);
+  //ESP_LOGI(TAG,"gfxUpdateParticipantChartRSSI(handleGFX:%" PRId32 ", RSSI:%" PRId32 ") -> Plot: %" PRId32 "",handleGFX,RSSI,plotValue);
   lv_chart_set_next_value(chartRSSI, guiParticipants[handleGFX].seriesRSSI, plotValue);
 }
 */
@@ -1179,18 +1179,18 @@ static void gfxClearAllParticipantData()
 
 static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
 {
-  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d)",handleGFX,fromLap);
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ",fromLap:%" PRId32 ")",handleGFX,fromLap);
 
   uint32_t maxLaps = guiRace.getMaxGraphLaps();
   if (fromLap > maxLaps) {
-    ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) ERROR above maxLaps:%d DO NOTHING",handleGFX,fromLap,maxLaps);
+    ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ",fromLap:%" PRId32 ") ERROR above maxLaps:%" PRId32 " DO NOTHING",handleGFX,fromLap,maxLaps);
     return;
   }
   for(uint32_t lap = fromLap; lap <= maxLaps; lap++)
   {
     if (!guiRace.isTimeBasedRace()) {
       if((2*lap+1) > lv_chart_get_point_count(chartLaps)) {
-        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%d, fromLap:%d,...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
+        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ", fromLap:%" PRId32 ",...) ERROR (2*lap+1) is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
         return;
       }
       guiParticipants[handleGFX].seriesLaps->x_points[2*lap] = LV_CHART_POINT_NONE;
@@ -1200,16 +1200,16 @@ static void gfxClearParticipantData(uint32_t handleGFX, uint32_t fromLap)
     }
     else {
       if(lap > lv_chart_get_point_count(chartLaps)) {
-        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%d, fromLap:%d,...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
+        ESP_LOGE(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ", fromLap:%" PRId32 ",...) ERROR lap is above lv_chart_get_point_count():%d DO NOTHING",handleGFX,fromLap,lv_chart_get_point_count(chartLaps));
         return;
       }
       guiParticipants[handleGFX].seriesLaps->x_points[lap] = LV_CHART_POINT_NONE;
       guiParticipants[handleGFX].seriesLaps->y_points[lap] = LV_CHART_POINT_NONE;
     }
   }
-  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) lv_chart_refresh()",handleGFX,fromLap);
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ",fromLap:%" PRId32 ") lv_chart_refresh()",handleGFX,fromLap);
   lv_chart_refresh(chartLaps); //Required after direct set
-  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%d,fromLap:%d) Done",handleGFX,fromLap);
+  ESP_LOGI(TAG,"gfxClearParticipantData(handleGFX:%" PRId32 ",fromLap:%" PRId32 ") Done",handleGFX,fromLap);
 }
 
 // Update Race info (Laps/Dist)
@@ -1220,7 +1220,7 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
 
     gfxUpdateInRace(msg.inRace, handleGFX);
 
-    ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%d msg.laps:%d dist:%d",guiParticipants[handleGFX].laps,msg.laps,msg.distance);
+    ESP_LOGI(TAG,"guiParticipants[handleGFX].laps:%" PRId32 " msg.laps:%" PRId32 " dist:%" PRId32 "",guiParticipants[handleGFX].laps,msg.laps,msg.distance);
 
     if (msg.laps > guiParticipants[handleGFX].laps) {
       // new lap
@@ -1239,21 +1239,21 @@ static void gfxUpdateParticipantData(msg_UpdateParticipantData msg)
     guiParticipants[handleGFX].laps = msg.laps;
     guiParticipants[handleGFX].thisLapStart = msg.lastLapTime;
 
-    lv_label_set_text_fmt(guiParticipants[handleGFX].labelDist, "%4.3fkm",msg.distance/1000.0);
+    lv_label_set_text_fmt(guiParticipants[handleGFX].labelDist, "%4.3fkm",msg.distance/1000.0); //ZINGO?? 
     if (guiParticipants[handleGFX].inRace) {
       lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceDist, "%4.3fkm",msg.distance/1000.0);
     }
 
     if (!guiRace.isTimeBasedRace()) {
-      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
-      if (guiParticipants[handleGFX].inRace) {
-        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d/%2d)",msg.laps,guiRace.getLaps());
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2" PRId32 "/%2" PRId32 ")",msg.laps,guiRace.getLaps());
+      if ( guiParticipants[handleGFX].inRace) {
+        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2" PRId32 "/%2" PRId32 ")",msg.laps,guiRace.getLaps());
       }
     }
     else {
-      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2d)",msg.laps);
+      lv_label_set_text_fmt(guiParticipants[handleGFX].labelLaps, "(%2" PRId32 ")",msg.laps);
       if (guiParticipants[handleGFX].inRace) {
-        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2d)",msg.laps);
+        lv_label_set_text_fmt(guiParticipants[handleGFX].labelRaceLaps, "(%2" PRId32 ")",msg.laps);
       }
     }
     struct tm timeinfo;
@@ -1348,12 +1348,12 @@ static uint32_t gfxAddParticipant(msg_AddParticipant &msgParticipant)
   uint32_t handleGFX = globalHandleGFX;
 
   if(handleGFX >= ITAG_COUNT) {
-    ESP_LOGE(TAG," ERROR to may user added handleGFX:%d >= ITAG_COUNT:%d for msg_AddParticipant MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d  ---> Do nothing",handleGFX, ITAG_COUNT,
+    ESP_LOGE(TAG," ERROR to may user added handleGFX:%" PRId32 " >= ITAG_COUNT:%d for msg_AddParticipant MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%d  ---> Do nothing",handleGFX, ITAG_COUNT,
                msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
     return UINT32_MAX; // indicates error
   }
 //  else {
-//    ESP_LOGI(TAG," handleGFX:%d < ITAG_COUNT:%d for msg_AddParticipant MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d  ---> Add",handleGFX, ITAG_COUNT,
+//    ESP_LOGI(TAG," handleGFX:%" PRId32 " < ITAG_COUNT:%d for msg_AddParticipant MSG:0x%" PRIx32 " handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d  ---> Add",handleGFX, ITAG_COUNT,
 //               msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
 //  }
   gfxAddUserToParticipants(tabParticipants, msgParticipant, handleGFX);
@@ -1361,7 +1361,7 @@ static uint32_t gfxAddParticipant(msg_AddParticipant &msgParticipant)
   gfxUpdateParticipantChartNewLap(handleGFX,0,0,0);
   globalHandleGFX++;
   if(handleGFX >= ITAG_COUNT) {
-    ESP_LOGI(TAG,"Added all Users handleGFX:%d from MSG:0x%x handleDB:0x%08x color:(0x%06x,0x%06x) Name:%s inRace:%d --------- COME ON LETS PARTY!!!!!!!!!!!!!!!!!!", handleGFX,
+    ESP_LOGI(TAG,"Added all Users handleGFX:%" PRId32 " from MSG:0x%" PRIx32 " handleDB:0x%08" PRIx32 " color:(0x%06" PRIx32 ",0x%06" PRIx32 ") Name:%s inRace:%d --------- COME ON LETS PARTY!!!!!!!!!!!!!!!!!!", handleGFX,
                msgParticipant.header.msgType, msgParticipant.handleDB, msgParticipant.color0, msgParticipant.color1, msgParticipant.name, msgParticipant.inRace);
 
   }
@@ -1391,7 +1391,7 @@ void guiRace::receiveConfigRace(msg_RaceConfig *raceConfig)
   ESP_LOGI(TAG,"receiveConfigRace()");
 
 
-  //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%s distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+  //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%" PRIx32 " filename:%s name:%s distace:%" PRId32 " laps:%" PRId32 " blockNewLapTime:%" PRId32 " updateCloserTime:%" PRId32 ", raceStartInTime:%" PRId32 "",
   //      raceConfig->header.msgType, raceConfig->fileName, raceConfig->name,raceConfig->distance, raceConfig->laps, 
   //      raceConfig->blockNewLapTime, raceConfig->updateCloserTime, raceConfig->raceStartInTime);
   std::string fileName = std::string(raceConfig->fileName);
@@ -1493,14 +1493,14 @@ void guiRace::sendConfigRace()
   msg.Broadcast.RaceConfig.updateCloserTime = configRaceUpdateCloserTime;
   msg.Broadcast.RaceConfig.raceStartInTime = configRaceRaceStartIn;
 
-  //ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%x filename:%s name:%d distace:%d laps:%d blockNewLapTime:%d updateCloserTime:%d, raceStartInTime:%d",
+  //ESP_LOGI(TAG,"Send: MSG_RACE_CONFIG MSG:0x%" PRIx32 " filename:%s name:%" PRId32 " distace:%" PRId32 " laps:%" PRId32 " blockNewLapTime:%" PRId32 " updateCloserTime:%" PRId32 ", raceStartInTime:%" PRId32 "",
   //      msg.Broadcast.RaceConfig.header.msgType, msg.Broadcast.RaceConfig.fileName, msg.Broadcast.RaceConfig.name,msg.Broadcast.RaceConfig.distance, msg.Broadcast.RaceConfig.laps, 
   //      msg.Broadcast.RaceConfig.blockNewLapTime, msg.Broadcast.RaceConfig.updateCloserTime, msg.Broadcast.RaceConfig.raceStartInTime);
 
   BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 2000 )); // TODO add resend ?
   if (!xReturned) {
     // it it fails let the user click again
-    ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%x could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
+    ESP_LOGW(TAG,"WARNING: Send: MSG_RACE_CONFIG MSG:0x%" PRIx32 " could not be sent in 2000ms. USER need to retry", msg.Broadcast.RaceConfig.header.msgType);
   }
 
 }
@@ -1642,7 +1642,7 @@ static void taConfigBool_event_cb(lv_event_t * e)
   }
 }
 
-static lv_obj_t * addConfigText(lv_obj_t * parent, uint8_t row, char *labelText, char* content, char* extra, bool editable)
+static lv_obj_t * addConfigText(lv_obj_t * parent, uint8_t row, const char *labelText, const char* content, const char* extra, bool editable)
 {
   uint8_t col = 0;
 
@@ -1678,7 +1678,7 @@ static lv_obj_t * addConfigText(lv_obj_t * parent, uint8_t row, char *labelText,
   return lvobj;
 }
 
-static lv_obj_t * addConfigNumber(lv_obj_t * parent, uint8_t row, char *labelText, uint32_t content, char* extra, bool editable)
+static lv_obj_t * addConfigNumber(lv_obj_t * parent, uint8_t row, const char *labelText, uint32_t content, const char* extra, bool editable)
 {
   uint8_t col = 0;
 
@@ -1716,7 +1716,7 @@ static lv_obj_t * addConfigNumber(lv_obj_t * parent, uint8_t row, char *labelTex
   return lvobj;
 }
 
-static lv_obj_t * addConfigBool(lv_obj_t * parent, uint8_t row, char *labelText, bool content, char* extra, bool editable)
+static lv_obj_t * addConfigBool(lv_obj_t * parent, uint8_t row, const char *labelText, bool content, const char* extra, bool editable)
 {
   uint8_t col = 0;
 
@@ -1996,8 +1996,7 @@ void createGUI(void)
 void updateGUITime()
 {
   char buff[30];
-  tm timeNow = rtc.getTimeStruct();
-  time_t now = mktime(&timeNow);
+  time_t now = rtc.getEpoch();
 
   if (raceOngoing) {
     time_t currentRaceTime = difftime(now, guiRace.getRaceStart());
@@ -2005,7 +2004,7 @@ void updateGUITime()
     lv_label_set_text(globalLabelRaceTime, buff);
   }
   else if(raceStartIn) {
-    lv_label_set_text_fmt(globalLabelRaceTime, ">>  %d  <<", raceStartIn);
+    lv_label_set_text_fmt(globalLabelRaceTime, ">>  %" PRId32 "  <<", raceStartIn);
   }
   else {
     lv_label_set_text(globalLabelRaceTime, "Start!");
@@ -2022,10 +2021,11 @@ void loopHandlLVGL()
     msg_GFX msg;
     while ( xQueueReceive(queueGFX, &(msg), (TickType_t)portMAX_DELAY) == pdPASS)
     {
-      //ESP_LOGE(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%x -----",msg.header.msgType);
+      //ESP_LOGI(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%" PRIx32 " -----",msg.header.msgType);
       switch(msg.header.msgType) {
         case MSG_GFX_TIMER:
         {
+          //ESP_LOGI(TAG,"Recived MSG_GFX_TIMER: MSG:0x%" PRIx32 "", msg.UpdateStatus.header.msgType);
           lv_timer_handler();
 
           static unsigned long lastTimeUpdate = 0;
@@ -2039,7 +2039,7 @@ void loopHandlLVGL()
         }
         case MSG_GFX_UPDATE_USER_DATA:
         {
-          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_DATA: MSG:0x%x handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d,connectionStatus:%d",
+          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_DATA: MSG:0x%" PRIx32 " handleGFX:0x%08x distance:%d laps:%d lastlaptime:%d,connectionStatus:%d",
           //        msg.Update.header.msgType, msg.Update.handleGFX, msg.Update.distance, msg.Update.laps, msg.Update.lastlaptime, msg.Update.connectionStatus);
           gfxUpdateParticipantData(msg.UpdateUserData);
           // Done! No response on this msg
@@ -2047,14 +2047,14 @@ void loopHandlLVGL()
         }
         case MSG_GFX_UPDATE_USER_STATUS:
         {
-          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_STATUS: MSG:0x%x handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
+          //ESP_LOGI(TAG,"Recived MSG_GFX_UPDATE_USER_STATUS: MSG:0x%" PRIx32 " handleGFX:0x%08x connectionStatus:%d battery:%d inRace:%d",
           //              msg.UpdateStatus.header.msgType, msg.UpdateStatus.handleGFX, msg.UpdateStatus.connectionStatus, msg.UpdateStatus.battery, msg.UpdateStatus.inRace);
           gfxUpdateParticipantStatus(msg.UpdateStatus);
           break;
         }
         case MSG_GFX_UPDATE_USER:
         {
-          //ESP_LOGI(TAG,"Received: MSG_GFX_UPDATE_USER MSG:0x%x handleGFX:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
+          //ESP_LOGI(TAG,"Received: MSG_GFX_UPDATE_USER MSG:0x%" PRIx32 " handleGFX:0x%08x color:(0x%" PRIx32 ",0x%" PRIx32 ") Name:%s inRace:%d", 
           //             msg.UpdateUser.header.msgType, msg.UpdateUser.handleGFX, msg.UpdateUser.color0, msg.UpdateUser.color1, msg.UpdateUser.name, msg.UpdateUser.inRace);
           gfxUpdateParticipant(msg.UpdateUser);
           // Done! No response on this msg
@@ -2062,8 +2062,8 @@ void loopHandlLVGL()
         }
         case MSG_GFX_ADD_USER:
         {
-          //ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER MSG:0x%x handleDB:0x%08x color:(0x%x,0x%x) Name:%s inRace:%d", 
-          //             msg.AddUser.header.msgType, msg.AddUser.handleDB, AddUser.Add.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
+          ESP_LOGI(TAG,"Received: MSG_GFX_ADD_USER MSG:0x%" PRIx32 " handleDB:0x%" PRIx32 " color:(0x%" PRIx32 ",0x%" PRIx32 ") Name:%s inRace:%d", 
+                       msg.AddUser.header.msgType, msg.AddUser.handleDB, msg.AddUser.color0, msg.AddUser.color1, msg.AddUser.name, msg.AddUser.inRace);
           uint32_t handle = gfxAddParticipant(msg.AddUser);
 
           msg_RaceDB msgResponse;
@@ -2076,9 +2076,9 @@ void loopHandlLVGL()
           else {
             msgResponse.AddedToGFX.wasOK = false;
           }
-          // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%x handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
+          // ESP_LOGI(TAG,"Send: MSG_ITAG_GFX_ADD_USER_RESPONSE MSG:0x%" PRIx32 " handleDB:0x%08x handleGFX:0x%08x wasOK:%d", 
           //              msgResponse.AddedToGFX.header.msgType, msgResponse.AddedToGFX.handleDB, msgResponse.AddedToGFX.handleGFX, msgResponse.AddedToGFX.wasOK);
-          BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
+          /*BaseType_t xReturned =*/ xQueueSend(queueRaceDB, (void*)&msgResponse, (TickType_t)pdMS_TO_TICKS( 2000 ));
           // TODO handle error? xReturned;
 
           break;
@@ -2086,34 +2086,34 @@ void loopHandlLVGL()
           // Broadcast Messages
           case MSG_RACE_START:
           {
-            //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%x startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
+            //ESP_LOGI(TAG,"Received: MSG_RACE_START MSG:0x%" PRIx32 " startTime:%d", msg.Broadcast.RaceStart.header.msgType,msg.Broadcast.RaceStart.startTime);
             guiRace.setRaceStart(msg.Broadcast.RaceStart.startTime);
             break;
           }
           case MSG_RACE_STOP:
           {
-            //ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%x ", msg.Broadcast.RaceStop.header.msgType);
+            //ESP_LOGI(TAG,"Received: MSG_RACE_STOP MSG:0x%" PRIx32 " ", msg.Broadcast.RaceStop.header.msgType);
             // Do nothing
             // TODO keep our on raceOngoing state and set it here.
             break;
           }
           case MSG_RACE_CLEAR:
           {
-            ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%x", msg.Broadcast.RaceStart.header.msgType);
+            ESP_LOGI(TAG,"Received: MSG_RACE_CLEAR MSG:0x%" PRIx32 "", msg.Broadcast.RaceStart.header.msgType);
             gfxClearAllParticipantData();
             break;
           }
           case MSG_RACE_CONFIG:
           {
-            //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%x", msg.Broadcast.RaceConfig.header.msgType);
+            //ESP_LOGI(TAG,"Received: MSG_RACE_CONFIG MSG:0x%" PRIx32 "", msg.Broadcast.RaceConfig.header.msgType);
             guiRace.receiveConfigRace(&msg.Broadcast.RaceConfig);
             break;
           }
           default:
-          ESP_LOGE(TAG,"ERROR received bad msg: 0x%x",msg.header.msgType);
+          ESP_LOGE(TAG,"ERROR received bad msg: 0x%" PRIx32 "",msg.header.msgType);
           //break;
       }
-      //ESP_LOGE(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%x DONE -----",msg.header.msgType);
+      //ESP_LOGE(TAG,"----- loopHandlLVGL() msg.header.msgType = 0x%" PRIx32 " DONE -----",msg.header.msgType);
     }
   }
 }
@@ -2121,6 +2121,7 @@ void loopHandlLVGL()
 // ######################################################## GFX & Touch Driver stuff
 
 // Display callback to flush the buffer to screen
+
 void lvgl_displayFlushCallBack(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
 {
   uint32_t w = (area->x2 - area->x1 + 1);
@@ -2129,8 +2130,11 @@ void lvgl_displayFlushCallBack(lv_disp_drv_t *disp, const lv_area_t *area, lv_co
 #if (LV_COLOR_16_SWAP != 0)
   gfx->draw16bitBeRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
 #else
-  gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
+//  gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
+  gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full,
+                          area->x2 - area->x1 + 1, area->y2 - area->y1 + 1);
 #endif
+  gfx->flush(); // Flush the buffer to the screen
 
   lv_disp_flush_ready(disp);
 }
@@ -2167,33 +2171,29 @@ void vTaskLVGL( void *pvParameters )
   //configASSERT( ( ( uint32_t ) pvParameters ) == 2 );
 
   ESP_LOGI(TAG, "Setup GFX");
-  
-  int32_t prefer_speed = 14000000; // MAKERFAB_800x480 16000000
-  if (HW_Platform == HWPlatform::Sunton_800x480 ) {
-    // SUNTON_800x480 14000000
-    prefer_speed = 14000000;
-  }
 
-  gfx = new Arduino_RPi_DPI_RGBPanel(
-    bus,
-    800 /* width */, 0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
-    480 /* height */, 0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
-    1 /* pclk_active_neg */, prefer_speed /* prefer_speed */, true /* auto_flush */);
+gfx = new Arduino_RGB_Display(
+    800 /* width */, 480 /* height */, rgbpanel);
+ 
+    //, 0 /* rotation*/, true /* auto_flush */, databus,
+    //0 /* hsync_polarity */, 8 /* hsync_front_porch */, 4 /* hsync_pulse_width */, 8 /* hsync_back_porch */,
+    //480 /* height */, 0 /* vsync_polarity */, 8 /* vsync_front_porch */, 4 /* vsync_pulse_width */, 8 /* vsync_back_porch */,
+    //1 /* pclk_active_neg */, prefer_speed /* prefer_speed */, 
 
-  gfx->begin();
-  gfx->fillScreen(BLACK);
-#ifdef TFT_BL
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, HIGH);
+gfx->begin();
+gfx->fillScreen(BLACK);
+
+#ifdef GFX_BL
+  pinMode(GFX_BL, OUTPUT);
+  digitalWrite(GFX_BL, HIGH);
 #endif
 
   lv_init();
   touch_init();
-  screenWidth = gfx->width();
-  screenHeight = gfx->height();
+
 //#ifdef ESP32
   uint32_t buffersize = sizeof(lv_color_t) * screenWidth * screenHeight / 4;
-  ESP_LOGE(TAG, "Alloc gfx framebuffer: %d bytes",buffersize);
+  ESP_LOGI(TAG, "Alloc gfx framebuffer: %d bytes ------------------------------------------",buffersize);
   //static uint8_t framebuf[192000];
   //disp_draw_buf = (lv_color_t *) &framebuf;
   //disp_draw_buf = (lv_color_t *)heap_caps_malloc(buffersize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -2208,6 +2208,7 @@ void vTaskLVGL( void *pvParameters )
   }
   else
   {
+    ESP_LOGI(TAG, "LVGL disp_draw_buf allocate OK size:%d",buffersize);
     lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, screenWidth * screenHeight / 4);
 
     /* Initialize the display */
@@ -2219,25 +2220,30 @@ void vTaskLVGL( void *pvParameters )
     disp_drv.draw_buf = &draw_buf;
 //    disp_drv.rotated = LV_DISP_ROT_90;
 //    disp_drv.sw_rotate = 1;
+  ESP_LOGI(TAG, "lv_disp_drv_register()");
     lv_disp_drv_register(&disp_drv);
-
-    /* Initialize the (dummy) input device driver */
-    static lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = lvgl_touchPadReadCallback;
-    lv_indev_drv_register(&indev_drv);
-
-    createGUI(); // MUST be done before adding participants
-    ESP_LOGI(TAG, "Setup GFX done");
-
-    for(;;)
-    {
-      ESP_LOGI(TAG,"----- loopHandlLVGL() -----");
-      loopHandlLVGL();
-      delay(5);
-    }
+  ESP_LOGI(TAG, "lv_disp_drv_register() Done");
   }
+
+
+
+  /* Initialize the (dummy) input device driver */
+  static lv_indev_drv_t indev_drv;
+  lv_indev_drv_init(&indev_drv);
+  indev_drv.type = LV_INDEV_TYPE_POINTER;
+  indev_drv.read_cb = lvgl_touchPadReadCallback;
+  lv_indev_drv_register(&indev_drv);
+
+  createGUI(); // MUST be done before adding participants
+  ESP_LOGI(TAG, "Setup GFX done");
+
+  for(;;)
+  {
+    ESP_LOGI(TAG,"----- loopHandlLVGL() -----");
+    loopHandlLVGL();
+    delay(5);
+  }
+
 
   ESP_LOGE(TAG,"FATAL ERROR: in vTaskLVGL() Setup Failed");
   ESP_LOGE(TAG,"----- esp_restart() -----");
@@ -2251,11 +2257,11 @@ void vTaskGUITimer( TimerHandle_t xTimer )
   //Send a tick message to our message queue to do all work in our own thread
   msg_GFX msg;
   msg.Timer.header.msgType = MSG_GFX_TIMER;
-  //ESP_LOGI(TAG,"Send: MSG_GFX_TIMER MSG:0x%x", msg.Timer.header.msgType);
+  //ESP_LOGI(TAG,"Send: MSG_GFX_TIMER MSG:0x%" PRIx32 "", msg.Timer.header.msgType);
   BaseType_t xReturned = xQueueSend(queueGFX, (void*)&msg, (TickType_t)0); //No blocking
   if( xReturned != pdPASS )
   {
-    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_TIMER MSG:0x%x  Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
+    ESP_LOGW(TAG,"WARNING: Send: MSG_GFX_TIMER MSG:0x%" PRIx32 "  Failed, do nothing, we try again in 2000ms", msg.Timer.header.msgType);
   }
 }
 
@@ -2286,10 +2292,13 @@ void initLVGL()
     ESP_LOGE(TAG,"----- esp_restart() -----");
     esp_restart();
   }
+  ESP_LOGI(TAG,"xTimerCreate(GUITimer,...) Ok");
 
   if( xTimerStart( timerHandle, pdMS_TO_TICKS(2000) ) != pdPASS ) {
     ESP_LOGE(TAG,"FATAL ERROR: xTimerStart(GUITimer) Failed");
     ESP_LOGE(TAG,"----- esp_restart() -----");
     esp_restart();
   }
+  ESP_LOGI(TAG,"initLVGL() xTimerStart(GUITimer) Ok");
+  ESP_LOGI(TAG,"initLVGL() Finished");
 }
