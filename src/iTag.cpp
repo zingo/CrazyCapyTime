@@ -659,19 +659,19 @@ static void DBloadGlobalConfig()
   }
 
 
-  std::string version = raceJson["fileformatversion"];
+ std::string version = raceJson["fileformatversion"].as<std::string>();
 
   if ( ! (version == "0.1")) {
     ESP_LOGE(TAG,"LoadGlobalConfig ERROR fileformatversion=%s != 0.1 (NOK) Try anyway JSON is kind of build for this.",version.c_str());
   }
 
-  std::string appname = raceJson["Appname"]; // "CrazyCapyTime";
-  std::string filetype = raceJson["filetype"]; // "globalconfig";
+  std::string appname = raceJson["Appname"].as<std::string>(); // "CrazyCapyTime";
+  std::string filetype = raceJson["filetype"].as<std::string>();  // "globalconfig";
 
   if ( ! ((appname == "CrazyCapyTime") && (filetype == "filetype"))) {
     ESP_LOGE(TAG,"LoadGlobalConfig ERROR Appname=%s filetype=%s",appname.c_str() ,filetype.c_str());
   }
-  std::string currentRace = raceJson["currentRace"];
+  std::string currentRace = raceJson["currentRace"].as<std::string>();
   theRace.setFileName(currentRace);
 }
 
@@ -721,27 +721,27 @@ static void DBloadRace()
   //String output = "";
   //serializeJsonPretty(raceJson, output);
   //ESP_LOGI(TAG,"Loaded json:\n%s", output.c_str());
-  std::string version = raceJson["fileformatversion"];
+  std::string version = raceJson["fileformatversion"].as<std::string>();
 
   if ( ! (version == "0.3")) {
     ESP_LOGE(TAG,"LoadRace ERROR fileformatversion=%s != 0.3 (NOK) Try anyway JSON is kind of build for this.",version.c_str());
   }
   //ESP_LOGI(TAG,"fileformatversion=%s (OK)",version.c_str());
 
-  std::string name = raceJson["racename"];
+  std::string name = raceJson["racename"].as<std::string>();
   bool raceTimeBased = raceJson["raceTimeBased"] | true;
   time_t raceMaxTime = raceJson["raceMaxTime"] | 24;
   uint32_t raceDist = raceJson["distance"]  | 821;
-  uint32_t raceLaps = raceJson["laps"];
+  uint32_t raceLaps = raceJson["laps"] | 0;
   double raceLapDist = raceJson["lapdistance"] | 821;
-  uint32_t raceTagCount = raceJson["tags"];
+  uint32_t raceTagCount = raceJson["tags"] | 0;
 
   time_t raceBlockNewLapTime = raceJson["raceBlockNewLapTime"] | 5*60;
   time_t raceStartInTime = raceJson["raceStartInTime"] | 15;
   time_t raceUpdateCloserTime = raceJson["raceUpdateCloserTime"] | 30;
 
 
-  time_t raceStart = raceJson["start"];
+  time_t raceStart = raceJson["start"] | 0;
   bool raceOngoing = raceJson["raceOngoing"] | false;
 
   theRace.setName(name);
@@ -796,18 +796,18 @@ static void DBloadRace()
       ESP_LOGE(TAG,"ERROR: File should have at least %" PRId32 " tags, but problem reading tag:%d Stop reading tags SORRY",raceTagCount, i);
       break;
     }
-    std::string tagAddress = tagJson["address"]; // -> iTags[i].address;
-    uint32_t tagColor0 = tagJson["color0"]; // -> iTags[i].color0;
-    uint32_t tagColor1 = tagJson["color1"]; // -> iTags[i].color1;
-    //bool tagActive = tagJson["active"]; // -> iTags[i].active;
- 
-    JsonObject participantJson = tagJson["participant"];
-    std::string participantName = participantJson["name"]; // -> iTags[i].participant.getName();
-    //uint32_t participantLaps = participantJson["laps"]; // -> iTags[i].participant.getLapCount();
-    uint32_t participantTimeSinceLastSeen = participantJson["timeSinceLastSeen"]; // -> iTags[i].participant.getTimeSinceLastSeen();
-    bool participantInRace = participantJson["inRace"]; // -> iTags[i].participant.getInRace();
+    std::string tagAddress = tagJson["address"].as<std::string>();
+    uint32_t tagColor0 = tagJson["color0"] | 0;
+    uint32_t tagColor1 = tagJson["color1"] | 0;
+    //bool tagActive = tagJson["active"] | false;
 
-    //ESP_LOGI(TAG,"iTag[%02d] %s (0x%06" PRIx32 " 0x%06" PRIx32 ") %s Participant: laps:%4d, lastSeen:%8d %s %s",i,tagAddress.c_str(),tagColor0,tagColor1,tagActive?"ACTIVE":"  NO  ",participantLaps,participantTimeSinceLastSeen,participantInRace?"Race":" NO ",participantName.c_str());
+    JsonObject participantJson = tagJson["participant"];
+    std::string participantName = participantJson["name"].as<std::string>();
+    //uint32_t participantLaps = participantJson["laps"] | 0;
+    uint32_t participantTimeSinceLastSeen = participantJson["timeSinceLastSeen"] | 0;
+    bool participantInRace = participantJson["inRace"] | false;
+
+    // ...existing code...
     iTags[i].address = tagAddress;
     iTags[i].color0 = tagColor0;
     iTags[i].color1 = tagColor1;
@@ -831,9 +831,8 @@ static void DBloadRace()
           // No more laps saved
           break;
         }
-        time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
-        time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
-        //ESP_LOGI(TAG,"         lap[%4d] StartTime:%8d, lastSeen:%8d",lap,lapStart,lapLastSeen);
+        time_t lapStart = lapJson["StartTime"] | 0;
+        time_t lapLastSeen = lapJson["LastSeen"] | 0;
         if (lap==0) {
           iTags[i].participant.setCurrentLap(lapStart,lapLastSeen);
         }
@@ -852,8 +851,8 @@ static void DBloadRace()
           // No more laps saved
           break;
         }
-        time_t lapStart = lapJson["StartTime"]; // -> iTags[i].participant.getLap(lap).getLapStart();
-        time_t lapLastSeen = lapJson["LastSeen"]; // -> iTags[i].participant.getLap(lap).getLastSeen();
+        time_t lapStart = lapJson["StartTime"] | 0;  // -> iTags[i].participant.getLap(lap).getLapStart();
+        time_t lapLastSeen = lapJson["LastSeen"] | 0;// -> iTags[i].participant.getLap(lap).getLastSeen();
         unsigned long now = rtc.getEpoch();
 
         if ((raceStart+lapStart+lapLastSeen) > now) {
