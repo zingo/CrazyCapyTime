@@ -357,7 +357,6 @@ iTag iTags[ITAG_COUNT] = {
   iTag("ff:ff:10:82:ef:1e", "Green",   false, ITAG_COLOR_GREEN,   ITAG_COLOR_GREEN)   //17 Light green BT4
 };
 
-
 static void AddParticipantToGFX(uint32_t handleDB, participantData &participant,uint32_t col0, uint32_t col1)
 {
   msg_GFX msg;
@@ -994,7 +993,8 @@ void vTaskRaceDB( void *pvParameters )
           bool found = false;
           for(int j=0; j<ITAG_COUNT; j++)
           {
-            if (bleAddress == iTags[j].address) {
+            // Compare addresses case-insensitively
+            if (strcasecmp(bleAddress.c_str(), iTags[j].address.c_str()) == 0) {
               //ESP_LOGI(TAG,"Scaning iTAGs MATCH: %s",bleAddress.c_str());
               found = true;
 
@@ -1077,6 +1077,10 @@ void vTaskRaceDB( void *pvParameters )
               
               break; // No need to check more TAGs if we got a match
             }
+            //else {
+            //  // No match, continue to next iTag
+            //  ESP_LOGI(TAG,"Scaning iTAGs NO MATCH checked: %s with %s",bleAddress.c_str(),iTags[j].address.c_str());
+            //}
           }
           if (found == false) {
             ESP_LOGW(TAG,"Scaning iTAGs NO MATCH: %s",bleAddress.c_str());

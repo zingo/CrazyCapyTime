@@ -3,21 +3,30 @@
 
 #include <string>
 
-#include <NimBLEDevice.h>
-
 #include "common.h"
 #include "messages.h"
 
 #define TAG "BT"
 
-#define BT_SCAN_TIME 5 // in seconds
-static uint16_t appId = 1;
+#define BT_SCAN_TIME 5000 // in seconds
+//static uint16_t appId = 1;
+
+//std::string convertBLEAddressToString(uint64_t bleAddress64)
+//{
+//  NimBLEAddress bleAddress(bleAddress64);
+//  return bleAddress.toString();
+//}
 
 std::string convertBLEAddressToString(uint64_t bleAddress64)
 {
-  NimBLEAddress bleAddress(bleAddress64);
-  return bleAddress.toString();
+    char str[18];
+    uint8_t *addr = (uint8_t *)&bleAddress64;
+    // BLE addresses are usually little-endian in memory, so print in reverse
+    snprintf(str, sizeof(str), "%02X:%02X:%02X:%02X:%02X:%02X",
+        addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+    return std::string(str);
 }
+
 
 #if 0
 
@@ -108,10 +117,10 @@ static bool BTtoggleBeepOnLost(NimBLEClient* client, bool beep) {
 static bool BTconnect(msg_iTagDetected &msg_iTag)
 {
   NimBLEClient* client;
-  NimBLEAddress bleAddress(msg_iTag.address);
+  NimBLEAddress bleAddress(convertBLEAddressToString(msg_iTag.address).c_str(),BLE_ADDR_PUBLIC);
   ESP_LOGI(TAG,"BT Connect %s", bleAddress.toString().c_str());
 
-  client = BLEDevice::createClient(appId++);
+  client = BLEDevice::createClient();
   client->setConnectTimeout(10); // 10s
 
   //NimBLEAddress bleAddress(address);
@@ -160,20 +169,10 @@ static bool BTconnect(msg_iTagDetected &msg_iTag)
 
 bool doBTScan = true;
 
-// Called when BT scanning has ended, start a new if non is found
-void scanBTCompleteCB(NimBLEScanResults scanResults)
-{
-  // Only restart scanning if not connecting
-  if (doBTScan) {
-    //ESP_LOGI(TAG,"BT Connect SCAN restart");
-    NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
-  }
-}
-
 /* Define a class to handle the callbacks when advertisements are received */
-class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
+class BLEScanCallbacks : public NimBLEScanCallbacks {
 
-  void onResult(NimBLEAdvertisedDevice* advertisedDevice)
+  void onResult(const NimBLEAdvertisedDevice* advertisedDevice)
   {
     //ESP_LOGI(TAG,"Scaning iTAGs Found: %s",String(advertisedDevice->toString().c_str()).c_str());
 
@@ -184,12 +183,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       msg.iTag.header.msgType = MSG_ITAG_DETECTED;
       msg.iTag.time = rtc.getEpoch();
       msg.iTag.address = static_cast<uint64_t>(advertisedDevice->getAddress());
-      if (advertisedDevice->haveRSSI()) {
-        msg.iTag.RSSI = advertisedDevice->getRSSI();
-      }
-      else {
-        msg.iTag.RSSI = INT8_MIN;
-      }
+      msg.iTag.RSSI = advertisedDevice->getRSSI();
       msg.iTag.battery = INT8_MIN;
       BaseType_t xReturned = xQueueSend(queueRaceDB, (void*)&msg, (TickType_t)pdMS_TO_TICKS( 0 )); //try without wait
       if (!xReturned)
@@ -202,6 +196,19 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           //TODO do something clever ??? Collect how many?
         }
       }
+    }
+  }
+  void onScanEnd(const NimBLEScanResults & 	scanResults, int 	reason )
+  {
+    ESP_LOGI(TAG,"BT SCAN Scaning iTAGs Ended reason: %d", reason);
+
+    // Only restart scanning if not connecting
+    if (doBTScan) {
+      //ESP_LOGI(TAG,"BT SCAN restart %u ms", BT_SCAN_TIME);
+      NimBLEDevice::getScan()->start(BT_SCAN_TIME, true, true);
+    }
+    else {
+      ESP_LOGI(TAG,"BT SCAN NOT restarted, waiting for restart");
     }
   }
 };
@@ -220,7 +227,7 @@ static void vTaskBTConnect( void *pvParameters )
   pBLEScan = NimBLEDevice::getScan();
 
   // create a callback that gets called when advertisers are found
-  pBLEScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
+  pBLEScan->setScanCallbacks(new BLEScanCallbacks(), true);
 
   // Set scan interval (how often) and window (how long) in milliseconds
   pBLEScan->setInterval(97);
@@ -231,7 +238,8 @@ static void vTaskBTConnect( void *pvParameters )
 
   // Start scanning for advertisers for the scan time specified (in seconds) 0 = forever
   doBTScan = true;  // used by the callback to autorestart BT scan
-  pBLEScan->start(BT_SCAN_TIME, scanBTCompleteCB);
+  ESP_LOGI(TAG,"BT SCAN start %u ms", BT_SCAN_TIME);
+  pBLEScan->start(BT_SCAN_TIME, true, true);
 
   for( ;; )
   {
@@ -252,7 +260,7 @@ static void vTaskBTConnect( void *pvParameters )
           
           ESP_LOGI(TAG,"BT Connect SCAN Start");
           doBTScan = true;
-          NimBLEDevice::getScan()->start(BT_SCAN_TIME, scanBTCompleteCB);
+          NimBLEDevice::getScan()->start(BT_SCAN_TIME, true, true);
 
           // Send response/activate iTag
           msg_RaceDB msgReponse;

@@ -102,7 +102,7 @@ static void Test24H(EndToEndTest testEndToEnd)
 {
 
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
-  NimBLEAddress bleAddress(testTag);
+  NimBLEAddress bleAddress(testTag,BLE_ADDR_PUBLIC);
   time_t start = rtc.getEpoch();
   uint32_t startIn = 15;
   uint32_t lapDist = 821; //meter
@@ -257,7 +257,7 @@ static void Test24H(EndToEndTest testEndToEnd)
 static void Test24HContinue(EndToEndTest testEndToEnd)
 {
   std::string testTag("ff:ff:10:7e:be:67"); // Zingo
-  NimBLEAddress bleAddress(testTag);
+  NimBLEAddress bleAddress(testTag, BLE_ADDR_PUBLIC);
   time_t start = rtc.getEpoch();
   uint32_t startIn = 15;
   uint32_t lapDist = 821; //meter
